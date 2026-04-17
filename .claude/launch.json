@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "vegas-dev",
+      "name": "vite-dev",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["/Users/jeremytheisen/Vegas Golf App/.claude/start-dev.sh"],
+      "runtimeArgs": ["/Users/jeremytheisen/JT Golf Genius/.claude/start-dev.sh"],
       "port": 5173
+    },
+    {
+      "name": "vite-preview",
+      "runtimeExecutable": "/Users/jeremytheisen/.nvm/versions/node/v24.14.1/bin/npm",
+      "runtimeArgs": ["run", "preview"],
+      "port": 4173
     }
   ]
 }
