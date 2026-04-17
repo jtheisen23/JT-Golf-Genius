@@ -1,6 +1,8 @@
 import { ref, set, onValue, get } from 'firebase/database';
 import { db } from '../firebase';
 import type { Player, Match, HoleSetup, Multiplier, HandicapMode } from '../types';
+import type { TourPlayer, TourHole } from '../tournament/types';
+import { calculateStrokesReceived } from '../utils/handicap';
 
 /** The shape we persist to Firebase for an active Vegas game. */
 export interface VegasGameState {
@@ -42,6 +44,78 @@ export async function loadVegasGame(code: string): Promise<VegasGameState | null
 /** Save full Vegas game state to Firebase. */
 export function saveVegasGame(code: string, state: VegasGameState): void {
   set(ref(db, `vegas/${code}`), state);
+}
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9);
+}
+
+/**
+ * Create a Vegas game pre-populated from a tournament group.
+ * Converts TourPlayers → Players, auto-generates matches, and pushes to Firebase.
+ * Returns the game code.
+ */
+export async function createVegasGameFromTournament(
+  tourPlayers: TourPlayer[],
+  tourHoles: TourHole[],
+  courseName: string,
+  pointValue = 0.5,
+  handicapMode: HandicapMode = 'off-the-low',
+): Promise<string> {
+  // Convert TourPlayer → Player
+  const rawPlayers: Player[] = tourPlayers.map((tp) => ({
+    id: tp.id,
+    name: tp.name,
+    handicap: tp.courseHandicap,
+    strokesReceived: 0,
+  }));
+
+  // Calculate strokes received
+  const players = calculateStrokesReceived(rawPlayers, handicapMode);
+
+  // Convert TourHole → HoleSetup
+  const holes: HoleSetup[] = tourHoles.map((h) => ({
+    number: h.number,
+    par: h.par,
+    handicapRating: h.handicapRating,
+  }));
+
+  // Auto-generate matches (same logic as useRound.autoGenerateMatches)
+  const matches: Match[] = [];
+  if (players.length >= 4) {
+    const p = players;
+    matches.push(
+      { id: generateId(), team1: [p[0].id, p[1].id], team2: [p[2].id, p[3].id], rotation: 1 },
+      { id: generateId(), team1: [p[0].id, p[2].id], team2: [p[1].id, p[3].id], rotation: 2 },
+      { id: generateId(), team1: [p[0].id, p[3].id], team2: [p[1].id, p[2].id], rotation: 3 },
+    );
+    if (players.length >= 5) {
+      matches.push(
+        { id: generateId(), team1: [p[0].id, p[1].id], team2: [p[4].id, p[2].id], rotation: 1 },
+        { id: generateId(), team1: [p[0].id, p[2].id], team2: [p[4].id, p[3].id], rotation: 2 },
+        { id: generateId(), team1: [p[0].id, p[3].id], team2: [p[4].id, p[1].id], rotation: 3 },
+      );
+    }
+  }
+
+  // Build initial scores
+  const scores: Record<string, Record<number, number>> = {};
+  players.forEach((p) => { scores[p.id] = {}; });
+
+  const state: VegasGameState = {
+    screen: 'holes',
+    players,
+    holes,
+    matches,
+    scores,
+    currentHole: 1,
+    courseName,
+    pointValue,
+    multipliers: {},
+    handicapMode,
+  };
+
+  return createVegasGame(state);
 }
 
 /** Subscribe to real-time updates for a Vegas game. Returns unsubscribe function. */

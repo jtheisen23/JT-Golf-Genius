@@ -3,6 +3,7 @@ import type { Tournament, TourGroup, TourPlayer } from '../types';
 import { randomizeGroups } from '../randomize';
 import { PLAY_DAY_LABELS, formatPlayDate } from '../dateUtils';
 import { applyAllowance, courseHandicap } from '../ghin';
+import { createVegasGameFromTournament } from '../../hooks/vegasSync';
 
 interface Props {
   tournament: Tournament;
@@ -12,6 +13,8 @@ interface Props {
   onSetGroups: (groups: TourGroup[]) => void;
   onRemovePlayer: (id: string) => void;
   onUpdatePlayer: (id: string, patch: Partial<TourPlayer>) => void;
+  onUpdateGroup: (id: string, patch: Partial<TourGroup>) => void;
+  onLaunchVegas: (code: string) => void;
   onEditSetup: () => void;
   onExit: () => void;
 }
@@ -24,6 +27,8 @@ export default function EventHome({
   onSetGroups,
   onRemovePlayer,
   onUpdatePlayer,
+  onUpdateGroup,
+  onLaunchVegas,
   onEditSetup,
   onExit,
 }: Props) {
@@ -262,26 +267,65 @@ export default function EventHome({
             0,
           );
           const expected = g.playerIds.length * tournament.holes.length;
+          const hasVegas = !!g.vegasGameCode;
+          const canLaunchVegas = g.playerIds.length >= 4;
+
+          const handleVegas = async (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (hasVegas) {
+              // Join existing game
+              onLaunchVegas(g.vegasGameCode!);
+              return;
+            }
+            if (!canLaunchVegas) return;
+            const groupPlayers = g.playerIds
+              .map((id) => tournament.players[id])
+              .filter(Boolean);
+            const code = await createVegasGameFromTournament(
+              groupPlayers,
+              tournament.holes,
+              tournament.courseName,
+            );
+            onUpdateGroup(g.id, { vegasGameCode: code });
+            onLaunchVegas(code);
+          };
+
           return (
-            <button
+            <div
               key={g.id}
-              onClick={() => onOpenGroup(g.id)}
-              className="w-full text-left bg-neutral-900 rounded-lg p-3 flex items-center justify-between active:bg-neutral-800"
+              className="bg-neutral-900 rounded-lg p-3 active:bg-neutral-800"
             >
-              <div>
-                <div className="font-semibold">{g.name}</div>
-                <div className="text-xs text-neutral-500">{playerNames || 'No players'}</div>
-                {g.teeTime && (
-                  <div className="text-xs text-neutral-500">Tee {g.teeTime}</div>
-                )}
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-neutral-500">Progress</div>
-                <div className="font-mono text-sm">
-                  {scored}/{expected}
+              <button
+                onClick={() => onOpenGroup(g.id)}
+                className="w-full text-left flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-semibold">{g.name}</div>
+                  <div className="text-xs text-neutral-500">{playerNames || 'No players'}</div>
+                  {g.teeTime && (
+                    <div className="text-xs text-neutral-500">Tee {g.teeTime}</div>
+                  )}
                 </div>
-              </div>
-            </button>
+                <div className="text-right">
+                  <div className="text-xs text-neutral-500">Progress</div>
+                  <div className="font-mono text-sm">
+                    {scored}/{expected}
+                  </div>
+                </div>
+              </button>
+              {canLaunchVegas && (
+                <button
+                  onClick={handleVegas}
+                  className={`mt-2 w-full py-2 rounded-lg text-xs font-semibold active:scale-95 transition-all duration-100 ${
+                    hasVegas
+                      ? 'bg-amber-700 text-amber-100 active:bg-amber-800'
+                      : 'bg-red-700 text-white active:bg-red-800'
+                  }`}
+                >
+                  {hasVegas ? `Join Vegas Game (${g.vegasGameCode})` : '🎲 Start Vegas Game'}
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

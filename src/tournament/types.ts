@@ -19,6 +19,7 @@ export interface TourGroup {
   name: string; // e.g. "Group 1" or "Tee Time 9:00"
   playerIds: string[];
   teeTime?: string;
+  vegasGameCode?: string; // game code if a Vegas game was launched for this group
 }
 
 export type TournamentFormat = 'stroke' | 'stableford' | 'both';
