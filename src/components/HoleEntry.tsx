@@ -528,15 +528,20 @@ export default function HoleEntry({
           const t1 = match.team1.map((id) => players.find((p) => p.id === id)?.name || '?');
           const t2 = match.team2.map((id) => players.find((p) => p.id === id)?.name || '?');
 
+          const leadingTeam = total > 0 ? t1.join(' & ') : t2.join(' & ');
+          const trailingTeam = total > 0 ? t2.join(' & ') : t1.join(' & ');
+          const leadColor = total > 0 ? 'text-red-400' : 'text-orange-300';
+          const trailColor = total > 0 ? 'text-orange-300' : 'text-red-400';
+
           return (
             <div key={match.id} className="bg-neutral-900 rounded-lg p-3 flex items-center justify-between">
               <div className="text-sm">
-                <span className="text-red-400">{t1.join(' & ')}</span>
+                <span className={leadColor}>{leadingTeam}</span>
                 <span className="text-neutral-500 mx-1">vs</span>
-                <span className="text-orange-300">{t2.join(' & ')}</span>
+                <span className={trailColor}>{trailingTeam}</span>
               </div>
-              <span className={`font-bold text-lg ${total > 0 ? 'text-red-500' : total < 0 ? 'text-orange-400' : 'text-neutral-400'}`}>
-                {total > 0 ? '+' : ''}{total}
+              <span className={`font-bold text-lg ${total === 0 ? 'text-neutral-400' : leadColor}`}>
+                {total === 0 ? 'Even' : `+${Math.abs(total)}`}
               </span>
             </div>
           );
