@@ -42,7 +42,7 @@ export default function TournamentSetup({
   const unassigned = players.filter((p) => !assignedIds.has(p.id));
 
   const recomputeCourseHandicap = (p: TourPlayer): number =>
-    applyAllowance(courseHandicap(p.handicapIndex), tournament.handicapAllowance);
+    applyAllowance(courseHandicap(p.handicapIndex, 132, 70, 68), tournament.handicapAllowance);
 
   const handleAddPlayer = () => {
     const id = generateId();
@@ -64,7 +64,7 @@ export default function TournamentSetup({
       };
       if (!tournament.players[playerId].name) patch.name = result.name;
       onUpdatePlayer(playerId, patch);
-      const ch = applyAllowance(courseHandicap(result.handicapIndex), tournament.handicapAllowance);
+      const ch = applyAllowance(courseHandicap(result.handicapIndex, 132, 70, 68), tournament.handicapAllowance);
       onUpdatePlayer(playerId, { courseHandicap: ch });
       setGhinLookup((s) => ({ ...s, [playerId]: { loading: false } }));
     } catch (err) {

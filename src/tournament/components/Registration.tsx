@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import type { Tournament, TourPlayer } from '../types';
-import { applyAllowance, courseHandicap, fetchGhinIndex } from '../ghin';
+import { applyAllowance, courseHandicap } from '../ghin';
 import { generateId } from '../useTournament';
 
 interface Props {
   tournament: Tournament;
   onAddPlayer: (player: TourPlayer) => void;
+  onUpdatePlayer: (id: string, patch: Partial<TourPlayer>) => void;
   onRemovePlayer: (id: string) => void;
   onBack: () => void;
 }
@@ -15,32 +16,16 @@ interface Props {
  * to the field for the day. Organizers later hit "Randomize foursomes" in
  * setup to turn the roster into groups.
  */
-export default function Registration({ tournament, onAddPlayer, onRemovePlayer, onBack }: Props) {
+export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, onRemovePlayer, onBack }: Props) {
   const [name, setName] = useState('');
   const [ghin, setGhin] = useState('');
   const [index, setIndex] = useState<string>('');
   const [status, setStatus] = useState<{ type: 'idle' | 'ok' | 'err'; message?: string }>({ type: 'idle' });
-  const [looking, setLooking] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<TourPlayer | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editIndex, setEditIndex] = useState('');
 
   const players = Object.values(tournament.players);
-
-  const handleGhinLookup = async () => {
-    if (!ghin.trim()) return;
-    setLooking(true);
-    setStatus({ type: 'idle' });
-    try {
-      const result = await fetchGhinIndex(ghin.trim());
-      if (!name) setName(result.name);
-      setIndex(String(result.handicapIndex));
-    } catch (err) {
-      setStatus({
-        type: 'err',
-        message: err instanceof Error ? err.message : 'Lookup failed',
-      });
-    } finally {
-      setLooking(false);
-    }
-  };
 
   const handleSubmit = () => {
     if (!name.trim()) {
@@ -48,7 +33,7 @@ export default function Registration({ tournament, onAddPlayer, onRemovePlayer, 
       return;
     }
     const idx = Number(index) || 0;
-    const ch = applyAllowance(courseHandicap(idx), tournament.handicapAllowance);
+    const ch = applyAllowance(courseHandicap(idx, 132, 70, 68), tournament.handicapAllowance);
     onAddPlayer({
       id: generateId(),
       name: name.trim(),
@@ -91,25 +76,16 @@ export default function Registration({ tournament, onAddPlayer, onRemovePlayer, 
           />
         </label>
 
-        <div>
+        <label className="block">
           <div className="text-xs text-neutral-400 uppercase mb-1">GHIN # (optional)</div>
-          <div className="flex gap-2">
-            <input
-              value={ghin}
-              onChange={(e) => setGhin(e.target.value)}
-              placeholder="e.g. 1234567"
-              className="input flex-1"
-              inputMode="numeric"
-            />
-            <button
-              onClick={handleGhinLookup}
-              disabled={!ghin.trim() || looking}
-              className="px-3 py-2 text-xs bg-emerald-800 text-emerald-100 rounded disabled:opacity-40"
-            >
-              {looking ? '…' : 'Lookup'}
-            </button>
-          </div>
-        </div>
+          <input
+            value={ghin}
+            onChange={(e) => setGhin(e.target.value)}
+            placeholder="e.g. 1234567"
+            className="input"
+            inputMode="numeric"
+          />
+        </label>
 
         <label className="block">
           <div className="text-xs text-neutral-400 uppercase mb-1">Handicap index</div>
@@ -159,19 +135,82 @@ export default function Registration({ tournament, onAddPlayer, onRemovePlayer, 
                     Index {p.handicapIndex} · CH {p.courseHandicap}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    if (confirm(`Remove ${p.name}?`)) onRemovePlayer(p.id);
-                  }}
-                  className="text-xs text-neutral-500"
-                >
-                  Remove
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setEditingPlayer(p);
+                      setEditName(p.name);
+                      setEditIndex(String(p.handicapIndex));
+                    }}
+                    className="text-xs text-emerald-400"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Remove ${p.name}?`)) onRemovePlayer(p.id);
+                    }}
+                    className="text-xs text-neutral-500"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {editingPlayer && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-neutral-900 rounded-xl p-4 w-full max-w-sm space-y-3">
+            <h3 className="font-bold text-lg">Edit player</h3>
+            <label className="block">
+              <div className="text-xs text-neutral-400 uppercase mb-1">Name</div>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="input"
+              />
+            </label>
+            <label className="block">
+              <div className="text-xs text-neutral-400 uppercase mb-1">Handicap Index</div>
+              <input
+                value={editIndex}
+                onChange={(e) => setEditIndex(e.target.value)}
+                inputMode="decimal"
+                className="input"
+              />
+            </label>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setEditingPlayer(null)}
+                className="flex-1 py-2 bg-neutral-800 text-neutral-300 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const idx = Number(editIndex) || 0;
+                  const ch = applyAllowance(
+                    courseHandicap(idx, 132, 70, 68),
+                    tournament.handicapAllowance,
+                  );
+                  onUpdatePlayer(editingPlayer.id, {
+                    name: editName.trim() || editingPlayer.name,
+                    handicapIndex: idx,
+                    courseHandicap: ch,
+                  });
+                  setEditingPlayer(null);
+                }}
+                className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .input {

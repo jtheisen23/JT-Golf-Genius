@@ -1,6 +1,8 @@
-import type { Tournament, TourGroup } from '../types';
+import { useEffect, useState } from 'react';
+import type { Tournament, TourGroup, TourPlayer } from '../types';
 import { randomizeGroups } from '../randomize';
 import { PLAY_DAY_LABELS, formatPlayDate } from '../dateUtils';
+import { applyAllowance, courseHandicap } from '../ghin';
 
 interface Props {
   tournament: Tournament;
@@ -8,6 +10,8 @@ interface Props {
   onOpenLeaderboard: () => void;
   onOpenRegistration: () => void;
   onSetGroups: (groups: TourGroup[]) => void;
+  onRemovePlayer: (id: string) => void;
+  onUpdatePlayer: (id: string, patch: Partial<TourPlayer>) => void;
   onEditSetup: () => void;
   onExit: () => void;
 }
@@ -18,9 +22,27 @@ export default function EventHome({
   onOpenLeaderboard,
   onOpenRegistration,
   onSetGroups,
+  onRemovePlayer,
+  onUpdatePlayer,
   onEditSetup,
   onExit,
 }: Props) {
+  const [editingPlayer, setEditingPlayer] = useState<TourPlayer | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editIndex, setEditIndex] = useState('');
+  // Recalculate CH for all players using current formula on mount
+  useEffect(() => {
+    for (const p of Object.values(tournament.players)) {
+      const correctCh = applyAllowance(
+        courseHandicap(p.handicapIndex, 132, 70, 68),
+        tournament.handicapAllowance,
+      );
+      if (p.courseHandicap !== correctCh) {
+        onUpdatePlayer(p.id, { courseHandicap: correctCh });
+      }
+    }
+  }, [tournament.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const registered = Object.values(tournament.players);
   const handleRandomize = () => {
     if (registered.length === 0) return;
@@ -114,6 +136,102 @@ export default function EventHome({
         >
           Copy leaderboard link
         </button>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="text-xs uppercase tracking-widest text-neutral-500 mb-2">
+          Registered ({registered.length})
+        </h2>
+        {registered.length === 0 ? (
+          <p className="text-sm text-neutral-500">No registrations yet.</p>
+        ) : (
+          <div className="space-y-1">
+            {registered.map((p) => (
+              <div
+                key={p.id}
+                className="bg-neutral-900 rounded-lg px-3 py-2 flex items-center justify-between text-sm"
+              >
+                <div>
+                  <div>{p.name}</div>
+                  <div className="text-xs text-neutral-500">
+                    Index {p.handicapIndex} · CH {p.courseHandicap}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setEditingPlayer(p);
+                      setEditName(p.name);
+                      setEditIndex(String(p.handicapIndex));
+                    }}
+                    className="text-xs text-emerald-400"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Remove ${p.name}?`)) onRemovePlayer(p.id);
+                    }}
+                    className="text-xs text-neutral-500"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {editingPlayer && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-neutral-900 rounded-xl p-4 w-full max-w-sm space-y-3">
+              <h3 className="font-bold text-lg">Edit player</h3>
+              <label className="block">
+                <div className="text-xs text-neutral-400 uppercase mb-1">Name</div>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-neutral-800 border border-neutral-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-emerald-600"
+                />
+              </label>
+              <label className="block">
+                <div className="text-xs text-neutral-400 uppercase mb-1">Handicap Index</div>
+                <input
+                  value={editIndex}
+                  onChange={(e) => setEditIndex(e.target.value)}
+                  inputMode="decimal"
+                  className="w-full bg-neutral-800 border border-neutral-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-emerald-600"
+                />
+              </label>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setEditingPlayer(null)}
+                  className="flex-1 py-2 bg-neutral-800 text-neutral-300 rounded-lg text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const idx = Number(editIndex) || 0;
+                    const ch = applyAllowance(
+                      courseHandicap(idx, 132, 70, 68),
+                      tournament.handicapAllowance,
+                    );
+                    onUpdatePlayer(editingPlayer.id, {
+                      name: editName.trim() || editingPlayer.name,
+                      handicapIndex: idx,
+                      courseHandicap: ch,
+                    });
+                    setEditingPlayer(null);
+                  }}
+                  className="flex-1 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-2">

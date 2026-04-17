@@ -100,6 +100,7 @@ export default function TournamentApp({ route, onNavigate, onExit }: Props) {
       <Registration
         tournament={tournament}
         onAddPlayer={addPlayer}
+        onUpdatePlayer={updatePlayer}
         onRemovePlayer={removePlayer}
         onBack={() => onNavigate(`#/t/${tournament.id}`)}
       />
@@ -134,6 +135,8 @@ export default function TournamentApp({ route, onNavigate, onExit }: Props) {
       onOpenLeaderboard={() => onNavigate(`#/t/${tournament.id}/leaderboard`)}
       onOpenRegistration={() => onNavigate(`#/t/${tournament.id}/register`)}
       onSetGroups={setGroups}
+      onRemovePlayer={removePlayer}
+      onUpdatePlayer={updatePlayer}
       onEditSetup={() => onNavigate(`#/t/${tournament.id}/setup`)}
       onExit={() => onNavigate('#/t')}
     />
