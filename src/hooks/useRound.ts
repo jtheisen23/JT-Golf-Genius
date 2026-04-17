@@ -68,7 +68,7 @@ export function useRound() {
       setHoles(remote.holes);
       setMatches(remote.matches);
       setScores(remote.scores || {});
-      setCurrentHole(remote.currentHole);
+      // currentHole is intentionally NOT synced — each device navigates independently
       setCourseName(remote.courseName);
       setPointValue(remote.pointValue);
       setMultipliers(remote.multipliers || {});
@@ -79,16 +79,18 @@ export function useRound() {
     return unsub;
   }, [gameCode]);
 
-  // Auto-save to localStorage + Firebase
+  // Auto-save to localStorage (includes currentHole for local restore)
   useEffect(() => {
     const state = { screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode };
     localStorage.setItem(ACTIVE_ROUND_KEY, JSON.stringify(state));
+  }, [screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode]);
 
-    // Write to Firebase if synced and this wasn't a remote update
-    if (gameCode && !isRemoteUpdate.current) {
-      saveVegasGame(gameCode, state);
-    }
-  }, [screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode, gameCode]);
+  // Sync to Firebase (excludes currentHole — each device navigates independently)
+  useEffect(() => {
+    if (!gameCode || isRemoteUpdate.current) return;
+    const state = { screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode };
+    saveVegasGame(gameCode, state);
+  }, [screen, players, holes, matches, scores, courseName, pointValue, multipliers, handicapMode, gameCode]);
 
   const addPlayer = useCallback(() => {
     if (players.length >= 5) return;
