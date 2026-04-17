@@ -5,6 +5,7 @@ import TournamentSetup from './components/TournamentSetup';
 import GroupScoring from './components/GroupScoring';
 import Leaderboard from './components/Leaderboard';
 import Registration from './components/Registration';
+import PastResults from './components/PastResults';
 import { sync } from './sync';
 
 interface Props {
@@ -34,12 +35,22 @@ export default function TournamentApp({ route, onNavigate, onExit }: Props) {
   // "not found" state. Reading sync directly avoids effect-driven state.
   const needsCreate = !!eventId && !tournament && sync.load(eventId) == null;
 
+  if (parts[0] === 'results') {
+    return (
+      <PastResults
+        onBack={() => onNavigate('#/t')}
+        onOpenLeaderboard={(id) => onNavigate(`#/t/${id}/leaderboard`)}
+      />
+    );
+  }
+
   if (!eventId) {
     return (
       <EventsList
         onOpenEvent={(id) => onNavigate(`#/t/${id}`)}
         onOpenRegistration={(id) => onNavigate(`#/t/${id}/register`)}
         onOpenLeaderboard={(id) => onNavigate(`#/t/${id}/leaderboard`)}
+        onOpenResults={() => onNavigate('#/t/results')}
         onExit={onExit}
       />
     );

@@ -8,6 +8,7 @@ interface Props {
   onOpenEvent: (id: string) => void;
   onOpenRegistration: (id: string) => void;
   onOpenLeaderboard: (id: string) => void;
+  onOpenResults: () => void;
   onExit: () => void;
 }
 
@@ -39,6 +40,7 @@ export default function EventsList({
   onOpenEvent,
   onOpenRegistration,
   onOpenLeaderboard,
+  onOpenResults,
   onExit,
 }: Props) {
   const [events, setEvents] = useState<Tournament[]>(() => loadAllEvents());
@@ -82,13 +84,20 @@ export default function EventsList({
 
   return (
     <div className="min-h-screen bg-black text-neutral-100 p-4 pb-8">
-      <header className="flex items-center justify-between mb-5">
+      <header className="flex items-center justify-between mb-3">
         <button onClick={onExit} className="text-sm text-neutral-400">
           ← Home
         </button>
         <h1 className="font-bold">Tournaments</h1>
         <div className="w-10" />
       </header>
+
+      <button
+        onClick={onOpenResults}
+        className="w-full mb-5 py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-sm font-semibold text-emerald-400 active:bg-neutral-800"
+      >
+        View Past Results
+      </button>
 
       <h2 className="text-xs uppercase tracking-widest text-neutral-500 mb-2">Weekly play</h2>
       <div className="space-y-3 mb-6">
