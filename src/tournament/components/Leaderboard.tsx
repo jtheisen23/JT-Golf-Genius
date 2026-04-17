@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Tournament } from '../types';
 import { buildLeaderboard, formatToPar } from '../scoring';
+import { loadVegasGame, subscribeVegasGame, type VegasGameState } from '../../hooks/vegasSync';
+import { calculatePlayerMoney } from '../../utils/scoring';
 
 interface Props {
   tournament: Tournament;
@@ -12,6 +14,41 @@ type View = 'net' | 'gross' | 'stableford';
 export default function Leaderboard({ tournament, onBack }: Props) {
   const [view, setView] = useState<View>(tournament.format === 'stableford' ? 'stableford' : 'net');
   const entries = useMemo(() => buildLeaderboard(tournament), [tournament]);
+
+  // Map groupId → VegasGameState for groups with active Vegas games
+  const [vegasStates, setVegasStates] = useState<Record<string, VegasGameState>>({});
+
+  // Build playerId → groupId lookup
+  const playerGroupMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const g of tournament.groups) {
+      for (const pid of g.playerIds) map[pid] = g.id;
+    }
+    return map;
+  }, [tournament.groups]);
+
+  // Subscribe to Vegas games for live updates
+  useEffect(() => {
+    const unsubs: (() => void)[] = [];
+    for (const g of tournament.groups) {
+      if (!g.vegasGameCode) continue;
+      const groupId = g.id;
+      const code = g.vegasGameCode;
+      // Initial load
+      loadVegasGame(code).then((state) => {
+        if (state) setVegasStates((prev) => ({ ...prev, [groupId]: state }));
+      });
+      // Live subscription
+      unsubs.push(
+        subscribeVegasGame(code, (state) => {
+          setVegasStates((prev) => ({ ...prev, [groupId]: state }));
+        }),
+      );
+    }
+    return () => unsubs.forEach((u) => u());
+  }, [tournament.groups]);
+
+  const hasVegas = Object.keys(vegasStates).length > 0;
 
   const sorted = useMemo(() => {
     const list = [...entries];
@@ -79,7 +116,7 @@ export default function Leaderboard({ tournament, onBack }: Props) {
           <p className="text-center text-neutral-500 p-8">No players yet.</p>
         )}
         <div className="space-y-1">
-          <div className="grid grid-cols-[32px_1fr_48px_60px_60px] gap-2 px-3 py-1 text-[10px] uppercase tracking-wider text-neutral-500">
+          <div className={`grid ${hasVegas ? 'grid-cols-[32px_1fr_36px_50px_50px_36px_50px]' : 'grid-cols-[32px_1fr_48px_60px_60px]'} gap-1 px-3 py-1 text-[10px] uppercase tracking-wider text-neutral-500`}>
             <div>Pos</div>
             <div>Player</div>
             <div className="text-center">Thru</div>
@@ -89,6 +126,8 @@ export default function Leaderboard({ tournament, onBack }: Props) {
             <div className="text-right">
               {view === 'stableford' ? 'Thru' : 'Total'}
             </div>
+            {hasVegas && <div className="text-center">Hole</div>}
+            {hasVegas && <div className="text-right">Vegas</div>}
           </div>
           {sorted.map((entry, i) => {
             const pos =
@@ -105,10 +144,18 @@ export default function Leaderboard({ tournament, onBack }: Props) {
                 : formatToPar(entry.netToPar);
             const secondary =
               view === 'stableford' ? `${entry.thru}` : view === 'gross' ? entry.grossTotal : entry.netTotal;
+            // Vegas data for this player
+            const groupId = playerGroupMap[entry.playerId];
+            const vegasState = groupId ? vegasStates[groupId] : undefined;
+            const vegasHole = vegasState?.currentHole;
+            const vegasMoney = vegasState
+              ? calculatePlayerMoney(vegasState, entry.playerId)
+              : null;
+
             return (
               <div
                 key={entry.playerId}
-                className="grid grid-cols-[32px_1fr_48px_60px_60px] gap-2 items-center px-3 py-2 bg-neutral-900 rounded-md"
+                className={`grid ${hasVegas ? 'grid-cols-[32px_1fr_36px_50px_50px_36px_50px]' : 'grid-cols-[32px_1fr_48px_60px_60px]'} gap-1 items-center px-3 py-2 bg-neutral-900 rounded-md`}
               >
                 <div className="text-sm text-neutral-400 font-semibold">{pos}</div>
                 <div>
@@ -132,6 +179,28 @@ export default function Leaderboard({ tournament, onBack }: Props) {
                 <div className="text-right text-sm text-neutral-400">
                   {entry.thru === 0 ? '—' : secondary}
                 </div>
+                {hasVegas && (
+                  <div className="text-center text-sm text-neutral-400">
+                    {vegasHole ?? '—'}
+                  </div>
+                )}
+                {hasVegas && (
+                  <div
+                    className={`text-right text-sm font-semibold ${
+                      vegasMoney == null
+                        ? 'text-neutral-500'
+                        : vegasMoney > 0
+                        ? 'text-emerald-400'
+                        : vegasMoney < 0
+                        ? 'text-red-400'
+                        : 'text-neutral-400'
+                    }`}
+                  >
+                    {vegasMoney == null
+                      ? '—'
+                      : `${vegasMoney >= 0 ? '+' : ''}$${Math.abs(vegasMoney).toFixed(0)}`}
+                  </div>
+                )}
               </div>
             );
           })}
