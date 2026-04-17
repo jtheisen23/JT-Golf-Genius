@@ -1,9 +1,23 @@
+import { ref, set, onValue, remove as fbRemove, get } from 'firebase/database';
+import { db } from '../firebase';
 import type { Tournament } from './types';
+
+/** Firebase drops empty arrays and converts arrays with gaps to objects.
+ *  Normalize so downstream code always sees the expected shapes. */
+function sanitizeTournament(raw: Record<string, unknown>): Tournament {
+  const t = raw as unknown as Tournament;
+  return {
+    ...t,
+    groups: Array.isArray(t.groups) ? t.groups : (t.groups ? Object.values(t.groups) : []),
+    holes: Array.isArray(t.holes) ? t.holes : (t.holes ? Object.values(t.holes) : []),
+    players: t.players ?? {},
+    scores: t.scores ?? {},
+  };
+}
 
 /**
  * SyncAdapter abstracts real-time tournament state propagation.
- * LocalSync works across tabs on one device (BroadcastChannel + localStorage).
- * Swap in a Firebase/Supabase/REST implementation later without touching UI code.
+ * FirebaseSync uses Firebase Realtime Database for cross-device sync.
  */
 export interface SyncAdapter {
   load(eventId: string): Tournament | null;
@@ -13,89 +27,84 @@ export interface SyncAdapter {
   remove(eventId: string): void;
 }
 
-const INDEX_KEY = 'tg-events-index';
-const eventKey = (id: string) => `tg-event-${id}`;
+/**
+ * FirebaseSync uses Firebase Realtime Database.
+ * - An in-memory cache keeps load() synchronous (required by useTournament's mutate pattern).
+ * - subscribe() sets up onValue listeners that update the cache and notify the UI.
+ * - listEventIds() reads from an in-memory index kept in sync via onValue.
+ */
+export class FirebaseSync implements SyncAdapter {
+  private cache = new Map<string, Tournament>();
+  private indexIds: string[] = [];
+  private indexUnsub: (() => void) | null = null;
 
-function readIndex(): string[] {
-  try {
-    const raw = localStorage.getItem(INDEX_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
+  constructor() {
+    // Subscribe to the tournament index for live updates
+    const indexRef = ref(db, 'tournament-index');
+    const unsub = onValue(indexRef, (snap) => {
+      const val = snap.val();
+      this.indexIds = val ? Object.keys(val) : [];
+    }, () => {
+      // Firebase connection error — index stays empty, app still works
+    });
+    this.indexUnsub = unsub;
+
+    // Seed index from a one-time read so listEventIds works immediately
+    get(indexRef).then((snap) => {
+      const val = snap.val();
+      if (val) this.indexIds = Object.keys(val);
+    }).catch(() => {});
   }
-}
-
-function writeIndex(ids: string[]): void {
-  localStorage.setItem(INDEX_KEY, JSON.stringify(ids));
-}
-
-export class LocalSync implements SyncAdapter {
-  private channels = new Map<string, BroadcastChannel>();
 
   load(eventId: string): Tournament | null {
-    try {
-      const raw = localStorage.getItem(eventKey(eventId));
-      return raw ? (JSON.parse(raw) as Tournament) : null;
-    } catch {
-      return null;
-    }
+    return this.cache.get(eventId) ?? null;
   }
 
   save(tournament: Tournament): void {
     const updated = { ...tournament, updatedAt: new Date().toISOString() };
-    localStorage.setItem(eventKey(updated.id), JSON.stringify(updated));
+    this.cache.set(updated.id, updated);
 
-    const index = readIndex();
-    if (!index.includes(updated.id)) {
-      index.unshift(updated.id);
-      writeIndex(index);
-    }
+    // Write full tournament to Firebase
+    const tRef = ref(db, `tournaments/${updated.id}`);
+    set(tRef, updated);
 
-    const ch = this.getChannel(updated.id);
-    ch.postMessage(updated);
+    // Ensure it's in the index
+    const idxRef = ref(db, `tournament-index/${updated.id}`);
+    set(idxRef, true);
   }
 
   subscribe(eventId: string, listener: (t: Tournament) => void): () => void {
-    const ch = this.getChannel(eventId);
-    const handler = (ev: MessageEvent<Tournament>) => listener(ev.data);
-    ch.addEventListener('message', handler);
+    const tRef = ref(db, `tournaments/${eventId}`);
 
-    const storageHandler = (ev: StorageEvent) => {
-      if (ev.key === eventKey(eventId) && ev.newValue) {
-        try {
-          listener(JSON.parse(ev.newValue) as Tournament);
-        } catch {
-          /* ignore malformed payload */
-        }
+    // Fire the listener immediately with cached data so the UI doesn't flash null
+    const cached = this.cache.get(eventId);
+    if (cached) {
+      queueMicrotask(() => listener(cached));
+    }
+
+    const unsub = onValue(tRef, (snap) => {
+      const raw = snap.val();
+      if (raw) {
+        const val = sanitizeTournament(raw);
+        this.cache.set(eventId, val);
+        listener(val);
       }
-    };
-    window.addEventListener('storage', storageHandler);
-
-    return () => {
-      ch.removeEventListener('message', handler);
-      window.removeEventListener('storage', storageHandler);
-    };
+      // If raw is null but we have cache, don't overwrite — the set() may still be in flight
+    }, () => {
+      // Firebase error — ignore, cache still works
+    });
+    return unsub;
   }
 
   listEventIds(): string[] {
-    return readIndex();
+    return this.indexIds;
   }
 
   remove(eventId: string): void {
-    localStorage.removeItem(eventKey(eventId));
-    writeIndex(readIndex().filter((id) => id !== eventId));
-    this.channels.get(eventId)?.close();
-    this.channels.delete(eventId);
-  }
-
-  private getChannel(eventId: string): BroadcastChannel {
-    let ch = this.channels.get(eventId);
-    if (!ch) {
-      ch = new BroadcastChannel(`tg-event-${eventId}`);
-      this.channels.set(eventId, ch);
-    }
-    return ch;
+    this.cache.delete(eventId);
+    fbRemove(ref(db, `tournaments/${eventId}`));
+    fbRemove(ref(db, `tournament-index/${eventId}`));
   }
 }
 
-export const sync: SyncAdapter = new LocalSync();
+export const sync: SyncAdapter = new FirebaseSync();

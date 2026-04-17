@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Player, Match, HoleSetup, Round, Screen, SavedRound, MatchResult, Multiplier, HandicapMode } from '../types';
 import { calculateStrokesReceived } from '../utils/handicap';
 import { calculateVegasPoints, getNetScore } from '../utils/scoring';
 import { saveRound } from '../utils/storage';
+import { createVegasGame, saveVegasGame, subscribeVegasGame, loadVegasGame, VegasGameState } from './vegasSync';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
@@ -18,6 +19,7 @@ const DEFAULT_HOLES: HoleSetup[] = GENEVA_PARS.map((par, i) => ({
 }));
 
 const ACTIVE_ROUND_KEY = 'vegas-golf-active-round';
+const ACTIVE_GAME_CODE_KEY = 'vegas-golf-game-code';
 
 function loadActiveRound() {
   try {
@@ -25,6 +27,10 @@ function loadActiveRound() {
     if (data) return JSON.parse(data);
   } catch {}
   return null;
+}
+
+function loadGameCode(): string | null {
+  return localStorage.getItem(ACTIVE_GAME_CODE_KEY);
 }
 
 export function useRound() {
@@ -46,14 +52,43 @@ export function useRound() {
   const [courseName, setCourseName] = useState(saved?.courseName || 'Geneva Golf Club');
   const [pointValue, setPointValue] = useState(saved?.pointValue || 0.5);
   const [handicapMode, setHandicapMode] = useState<HandicapMode>(saved?.handicapMode || 'off-the-low');
-  // matchId -> holeNumber -> Multiplier
   const [multipliers, setMultipliers] = useState<Record<string, Record<number, Multiplier>>>(saved?.multipliers || {});
+  const [gameCode, setGameCode] = useState<string | null>(loadGameCode);
 
-  // Auto-save active round state to localStorage
+  // Track whether the last state update came from Firebase to avoid echo writes
+  const isRemoteUpdate = useRef(false);
+
+  // Subscribe to Firebase when we have a game code
+  useEffect(() => {
+    if (!gameCode) return;
+    const unsub = subscribeVegasGame(gameCode, (remote: VegasGameState) => {
+      isRemoteUpdate.current = true;
+      setScreen(remote.screen as Screen);
+      setPlayers(remote.players);
+      setHoles(remote.holes);
+      setMatches(remote.matches);
+      setScores(remote.scores || {});
+      setCurrentHole(remote.currentHole);
+      setCourseName(remote.courseName);
+      setPointValue(remote.pointValue);
+      setMultipliers(remote.multipliers || {});
+      setHandicapMode(remote.handicapMode);
+      // Clear the flag after a microtask so the subsequent useEffect skip works
+      queueMicrotask(() => { isRemoteUpdate.current = false; });
+    });
+    return unsub;
+  }, [gameCode]);
+
+  // Auto-save to localStorage + Firebase
   useEffect(() => {
     const state = { screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode };
     localStorage.setItem(ACTIVE_ROUND_KEY, JSON.stringify(state));
-  }, [screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode]);
+
+    // Write to Firebase if synced and this wasn't a remote update
+    if (gameCode && !isRemoteUpdate.current) {
+      saveVegasGame(gameCode, state);
+    }
+  }, [screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode, gameCode]);
 
   const addPlayer = useCallback(() => {
     if (players.length >= 5) return;
@@ -147,12 +182,13 @@ export function useRound() {
     setMultipliers({});
     setCurrentHole(1);
     setScreen('setup');
+    setGameCode(null);
+    localStorage.removeItem(ACTIVE_GAME_CODE_KEY);
   }, []);
 
-  const startRound = useCallback(() => {
+  const startRound = useCallback(async () => {
     const updated = calculateStrokesReceived(players, handicapMode);
     setPlayers(updated);
-    // Initialize empty scores
     const initialScores: Record<string, Record<number, number>> = {};
     updated.forEach((p) => {
       initialScores[p.id] = {};
@@ -160,7 +196,42 @@ export function useRound() {
     setScores(initialScores);
     setCurrentHole(1);
     setScreen('holes');
-  }, [players, handicapMode]);
+
+    // Create a Firebase game so other devices can join
+    const state: VegasGameState = {
+      screen: 'holes',
+      players: updated,
+      holes,
+      matches,
+      scores: initialScores,
+      currentHole: 1,
+      courseName,
+      pointValue,
+      multipliers,
+      handicapMode,
+    };
+    const code = await createVegasGame(state);
+    setGameCode(code);
+    localStorage.setItem(ACTIVE_GAME_CODE_KEY, code);
+  }, [players, handicapMode, holes, matches, courseName, pointValue, multipliers]);
+
+  const joinGame = useCallback(async (code: string): Promise<boolean> => {
+    const remote = await loadVegasGame(code);
+    if (!remote) return false;
+    setScreen(remote.screen as Screen);
+    setPlayers(remote.players);
+    setHoles(remote.holes);
+    setMatches(remote.matches);
+    setScores(remote.scores || {});
+    setCurrentHole(remote.currentHole);
+    setCourseName(remote.courseName);
+    setPointValue(remote.pointValue);
+    setMultipliers(remote.multipliers || {});
+    setHandicapMode(remote.handicapMode);
+    setGameCode(code.toUpperCase());
+    localStorage.setItem(ACTIVE_GAME_CODE_KEY, code.toUpperCase());
+    return true;
+  }, []);
 
   const setScore = useCallback((playerId: string, holeNumber: number, grossScore: number) => {
     setScores((prev) => ({
@@ -307,9 +378,9 @@ export function useRound() {
 
     saveRound(savedRound);
     localStorage.removeItem(ACTIVE_ROUND_KEY);
+    localStorage.removeItem(ACTIVE_GAME_CODE_KEY);
+    setGameCode(null);
 
-    // Reset state for the next round. Keep the course/holes/point value
-    // since those are usually reused, but blank out players, matches, and scores.
     setPlayers([
       { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
       { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
@@ -361,5 +432,7 @@ export function useRound() {
     recalculateStrokes,
     resetForNewGame,
     loadSavedRound,
+    gameCode,
+    joinGame,
   };
 }
