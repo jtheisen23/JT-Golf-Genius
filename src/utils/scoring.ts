@@ -4,7 +4,8 @@
  * Rules:
  * - Each team's two net scores form a two-digit number (lower digit first → e.g. 4,5 = 45)
  * - If a team has a NATURAL birdie (gross score <= par-1), the OPPONENT's number is flipped
- *   (higher digit first → e.g. 5,4 = 54)
+ *   (higher digit first → e.g. 5,4 = 54) ONLY if the opponent's low net score is worse
+ *   than birdie (> par-1). If their low net is birdie or better, no flip.
  * - Points = opponent's number - your number (positive = you win)
  */
 export function calculateVegasPoints(
@@ -21,23 +22,18 @@ export function calculateVegasPoints(
   const sorted1 = [...team1Scores].sort((a, b) => a - b) as [number, number];
   const sorted2 = [...team2Scores].sort((a, b) => a - b) as [number, number];
 
+  // Flip only if opponent birdied AND your low net is worse than birdie
+  const flipTeam1 = team2HasBirdie && sorted1[0] > par - 1;
+  const flipTeam2 = team1HasBirdie && sorted2[0] > par - 1;
+
   // Normal: lower digit first. Flipped: higher digit first.
-  let team1Vegas: number;
-  let team2Vegas: number;
+  const team1Vegas = flipTeam1
+    ? sorted1[1] * 10 + sorted1[0]
+    : sorted1[0] * 10 + sorted1[1];
 
-  if (team2HasBirdie) {
-    // Opponent (team2) has birdie → flip team1's number
-    team1Vegas = sorted1[1] * 10 + sorted1[0];
-  } else {
-    team1Vegas = sorted1[0] * 10 + sorted1[1];
-  }
-
-  if (team1HasBirdie) {
-    // Opponent (team1) has birdie → flip team2's number
-    team2Vegas = sorted2[1] * 10 + sorted2[0];
-  } else {
-    team2Vegas = sorted2[0] * 10 + sorted2[1];
-  }
+  const team2Vegas = flipTeam2
+    ? sorted2[1] * 10 + sorted2[0]
+    : sorted2[0] * 10 + sorted2[1];
 
   const points = team2Vegas - team1Vegas;
 
