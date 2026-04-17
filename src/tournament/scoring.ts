@@ -15,7 +15,14 @@ export function stablefordPoints(net: number, par: number): number {
   return 2 + Math.abs(diff); // -1 => 3, -2 => 4, -3 => 5
 }
 
-export function buildLeaderboard(t: Tournament): LeaderboardEntry[] {
+/**
+ * Optional Vegas scores keyed by groupId → VegasGameState.scores (playerId → holeNumber → gross).
+ * When provided, Vegas scores are used as fallback for any group whose tournament scores are empty.
+ */
+export function buildLeaderboard(
+  t: Tournament,
+  vegasScores?: Record<string, Record<string, Record<number, number>>>,
+): LeaderboardEntry[] {
   const entries: LeaderboardEntry[] = [];
 
   const playerGroup = new Map<string, string>();
@@ -25,7 +32,12 @@ export function buildLeaderboard(t: Tournament): LeaderboardEntry[] {
     const groupId = t.groups.find((g) => g.playerIds.includes(player.id))?.id;
     if (!groupId) return;
 
-    const holeScores = t.scores[groupId]?.[player.id] || {};
+    // Use tournament scores if available, otherwise fall back to Vegas scores
+    const tournamentHoleScores = t.scores[groupId]?.[player.id] || {};
+    const vegasHoleScores = vegasScores?.[groupId]?.[player.id] || {};
+    const holeScores = Object.keys(tournamentHoleScores).length > 0
+      ? tournamentHoleScores
+      : vegasHoleScores;
     let gross = 0;
     let net = 0;
     let stableford = 0;

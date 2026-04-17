@@ -13,8 +13,6 @@ type View = 'net' | 'gross' | 'stableford';
 
 export default function Leaderboard({ tournament, onBack }: Props) {
   const [view, setView] = useState<View>(tournament.format === 'stableford' ? 'stableford' : 'net');
-  const entries = useMemo(() => buildLeaderboard(tournament), [tournament]);
-
   // Map groupId → VegasGameState for groups with active Vegas games
   const [vegasStates, setVegasStates] = useState<Record<string, VegasGameState>>({});
 
@@ -49,6 +47,20 @@ export default function Leaderboard({ tournament, onBack }: Props) {
   }, [tournament.groups]);
 
   const hasVegas = Object.keys(vegasStates).length > 0;
+
+  // Build Vegas scores map: groupId → playerId → holeNumber → gross score
+  const vegasScoresMap = useMemo(() => {
+    const map: Record<string, Record<string, Record<number, number>>> = {};
+    for (const [groupId, state] of Object.entries(vegasStates)) {
+      map[groupId] = state.scores || {};
+    }
+    return map;
+  }, [vegasStates]);
+
+  const entries = useMemo(
+    () => buildLeaderboard(tournament, hasVegas ? vegasScoresMap : undefined),
+    [tournament, vegasScoresMap, hasVegas],
+  );
 
   const sorted = useMemo(() => {
     const list = [...entries];
