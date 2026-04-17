@@ -23,9 +23,13 @@ function useHashRoute(): [string, (next: string) => void] {
 function ModePicker({ onPick }: { onPick: (hash: string) => void }) {
   return (
     <div className="min-h-screen bg-black text-neutral-100 flex flex-col items-center justify-center p-6">
-      <div className="text-center mb-10">
-        <div className="text-6xl mb-2">⛳</div>
-        <h1 className="text-3xl font-bold">Golf App</h1>
+      <div className="text-center mb-8">
+        <img
+          src={`${import.meta.env.BASE_URL}hero.jpg`}
+          alt="Who's ready to gamble"
+          className="w-48 h-48 rounded-full object-cover mx-auto mb-4 border-2 border-neutral-700"
+        />
+        <h1 className="text-2xl font-bold">Who's Ready to Gamble</h1>
         <p className="text-sm text-neutral-400 mt-1">Pick a mode</p>
       </div>
 
