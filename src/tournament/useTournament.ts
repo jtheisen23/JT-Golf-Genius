@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { sync } from './sync';
 import { nextDateForDay } from './dateUtils';
 import type { PlayDay, Tournament, TourGroup, TourHole, TourPlayer, TournamentFormat } from './types';
@@ -68,10 +68,13 @@ export function useTournament(eventId: string | null) {
     return unsub;
   }, [eventId]);
 
+  const tournamentRef = useRef(tournament);
+  tournamentRef.current = tournament;
+
   const mutate = useCallback(
     (fn: (t: Tournament) => Tournament) => {
       if (!eventId) return;
-      const current = sync.load(eventId);
+      const current = sync.load(eventId) ?? tournamentRef.current;
       if (!current) return;
       const next = fn(current);
       sync.save(next);
