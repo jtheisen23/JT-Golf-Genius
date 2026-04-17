@@ -35,6 +35,7 @@ export default function EventHome({
   const [editingPlayer, setEditingPlayer] = useState<TourPlayer | null>(null);
   const [editName, setEditName] = useState('');
   const [editIndex, setEditIndex] = useState('');
+  const [movingPlayer, setMovingPlayer] = useState<{ playerId: string; fromGroupId: string } | null>(null);
   // Recalculate CH for all players using current formula on mount
   useEffect(() => {
     for (const p of Object.values(tournament.players)) {
@@ -295,24 +296,36 @@ export default function EventHome({
               key={g.id}
               className="bg-neutral-900 rounded-lg p-3 active:bg-neutral-800"
             >
-              <button
-                onClick={() => onOpenGroup(g.id)}
-                className="w-full text-left flex items-center justify-between"
-              >
-                <div>
-                  <div className="font-semibold">{g.name}</div>
-                  <div className="text-xs text-neutral-500">{playerNames || 'No players'}</div>
-                  {g.teeTime && (
-                    <div className="text-xs text-neutral-500">Tee {g.teeTime}</div>
-                  )}
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-neutral-500">Progress</div>
-                  <div className="font-mono text-sm">
-                    {scored}/{expected}
-                  </div>
-                </div>
-              </button>
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-semibold">{g.name}</div>
+                <button
+                  onClick={() => onOpenGroup(g.id)}
+                  className="text-xs text-emerald-400"
+                >
+                  Scorecard →
+                </button>
+              </div>
+              {g.teeTime && (
+                <div className="text-xs text-neutral-500 mb-1">Tee {g.teeTime}</div>
+              )}
+              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                {g.playerIds.map((pid) => {
+                  const player = tournament.players[pid];
+                  if (!player) return null;
+                  return (
+                    <button
+                      key={pid}
+                      onClick={() => setMovingPlayer({ playerId: pid, fromGroupId: g.id })}
+                      className="text-xs text-neutral-400 underline decoration-neutral-700"
+                    >
+                      {player.name}
+                    </button>
+                  );
+                })}
+                {g.playerIds.length === 0 && (
+                  <span className="text-xs text-neutral-500">No players</span>
+                )}
+              </div>
               {canLaunchVegas && (
                 <button
                   onClick={handleVegas}
@@ -329,6 +342,60 @@ export default function EventHome({
           );
         })}
       </div>
+
+      {movingPlayer && (() => {
+        const player = tournament.players[movingPlayer.playerId];
+        const fromGroup = tournament.groups.find((g) => g.id === movingPlayer.fromGroupId);
+        const otherGroups = tournament.groups.filter((g) => g.id !== movingPlayer.fromGroupId);
+        if (!player || !fromGroup) return null;
+
+        const handleMove = (toGroupId: string) => {
+          // Remove from current group
+          onUpdateGroup(movingPlayer.fromGroupId, {
+            playerIds: fromGroup.playerIds.filter((id) => id !== movingPlayer.playerId),
+          });
+          // Add to target group
+          const toGroup = tournament.groups.find((g) => g.id === toGroupId)!;
+          onUpdateGroup(toGroupId, {
+            playerIds: [...toGroup.playerIds, movingPlayer.playerId],
+          });
+          setMovingPlayer(null);
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-neutral-900 rounded-xl p-4 w-full max-w-sm">
+              <h3 className="font-bold text-lg mb-1">Move {player.name}</h3>
+              <p className="text-xs text-neutral-500 mb-3">
+                Currently in {fromGroup.name}. Tap a group to move them.
+              </p>
+              <div className="space-y-2">
+                {otherGroups.map((g) => {
+                  const names = g.playerIds
+                    .map((id) => tournament.players[id]?.name || '?')
+                    .join(', ');
+                  return (
+                    <button
+                      key={g.id}
+                      onClick={() => handleMove(g.id)}
+                      className="w-full text-left bg-neutral-800 rounded-lg p-3 active:bg-neutral-700"
+                    >
+                      <div className="font-semibold text-sm">{g.name}</div>
+                      <div className="text-xs text-neutral-500">{names || 'Empty'}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setMovingPlayer(null)}
+                className="w-full mt-3 py-2 bg-neutral-800 text-neutral-300 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
