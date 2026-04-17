@@ -18,7 +18,6 @@ interface Props {
  */
 export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, onRemovePlayer, onBack }: Props) {
   const [name, setName] = useState('');
-  const [ghin, setGhin] = useState('');
   const [index, setIndex] = useState<string>('');
   const [status, setStatus] = useState<{ type: 'idle' | 'ok' | 'err'; message?: string }>({ type: 'idle' });
   const [editingPlayer, setEditingPlayer] = useState<TourPlayer | null>(null);
@@ -37,12 +36,10 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
     onAddPlayer({
       id: generateId(),
       name: name.trim(),
-      ghinNumber: ghin.trim() || undefined,
       handicapIndex: idx,
       courseHandicap: ch,
     });
     setName('');
-    setGhin('');
     setIndex('');
     setStatus({ type: 'ok', message: 'Signed up!' });
   };
@@ -77,17 +74,6 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
         </label>
 
         <label className="block">
-          <div className="text-xs text-neutral-400 uppercase mb-1">GHIN # (optional)</div>
-          <input
-            value={ghin}
-            onChange={(e) => setGhin(e.target.value)}
-            placeholder="e.g. 1234567"
-            className="input"
-            inputMode="numeric"
-          />
-        </label>
-
-        <label className="block">
           <div className="text-xs text-neutral-400 uppercase mb-1">Handicap index</div>
           <input
             value={index}
@@ -108,7 +94,7 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
 
         <button
           onClick={handleSubmit}
-          className="w-full py-3 bg-emerald-600 rounded-lg font-bold text-white"
+          className="w-full py-3 bg-emerald-600 rounded-lg font-bold text-white active:bg-emerald-700 active:scale-95 transition-all duration-100"
         >
           Sign me up
         </button>
