@@ -64,9 +64,12 @@ export class FirebaseSync implements SyncAdapter {
     const updated = { ...tournament, updatedAt: new Date().toISOString() };
     this.cache.set(updated.id, updated);
 
+    // Strip undefined values — Firebase rejects them
+    const clean = JSON.parse(JSON.stringify(updated));
+
     // Write full tournament to Firebase
     const tRef = ref(db, `tournaments/${updated.id}`);
-    set(tRef, updated);
+    set(tRef, clean);
 
     // Ensure it's in the index
     const idxRef = ref(db, `tournament-index/${updated.id}`);

@@ -62,19 +62,13 @@ export default function EventsList({
   };
 
   const createOther = () => {
-    console.log('[createOther] name:', JSON.stringify(name), 'courseName:', JSON.stringify(courseName));
     const trimmed = name.trim();
-    if (!trimmed) {
-      console.log('[createOther] name was empty, bailing');
-      return;
-    }
+    if (!trimmed) return;
     const t = createTournament({
       name: trimmed,
       courseName: courseName.trim() || 'Course',
     });
-    console.log('[createOther] created tournament:', t.id);
     sync.save(t);
-    console.log('[createOther] saved, navigating to', t.id);
     onOpenEvent(t.id);
     setName('');
     setCourseName('');
