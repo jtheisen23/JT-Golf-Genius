@@ -283,16 +283,26 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
   );
 }
 
-function ModeToggle({ current, onSwitch }: { current: 'vegas' | 'tournament'; onSwitch: () => void }) {
+function ModeToggle({ current, onSwitch, onLeaderboard }: { current: 'vegas' | 'tournament'; onSwitch: () => void; onLeaderboard?: () => void }) {
   const label = current === 'vegas' ? '🏆 Tournament' : '🎲 Vegas';
   const bg = current === 'vegas' ? 'bg-emerald-700 active:bg-emerald-800' : 'bg-red-700 active:bg-red-800';
   return (
-    <button
-      onClick={onSwitch}
-      className={`fixed top-3 right-3 z-50 ${bg} text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg`}
-    >
-      {label}
-    </button>
+    <div className="fixed top-3 right-3 z-50 flex gap-1.5">
+      {onLeaderboard && (
+        <button
+          onClick={onLeaderboard}
+          className="bg-amber-600 active:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg"
+        >
+          📊 Leaderboard
+        </button>
+      )}
+      <button
+        onClick={onSwitch}
+        className={`${bg} text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg`}
+      >
+        {label}
+      </button>
+    </div>
   );
 }
 
@@ -307,6 +317,9 @@ export default function App() {
     }
   }, [hash]);
 
+  // Extract tournament ID from last tournament route for leaderboard link
+  const lastTournamentId = lastTournamentRoute.match(/^#\/t\/([^/]+)/)?.[1] || null;
+
   if (hash.startsWith('#/vegas')) {
     // Extract join code from #/vegas/join/{CODE}
     const joinMatch = hash.match(/^#\/vegas\/join\/([A-Za-z0-9]{6})$/);
@@ -314,7 +327,11 @@ export default function App() {
 
     return (
       <>
-        <ModeToggle current="vegas" onSwitch={() => navigate(lastTournamentRoute)} />
+        <ModeToggle
+          current="vegas"
+          onSwitch={() => navigate(lastTournamentRoute)}
+          onLeaderboard={lastTournamentId ? () => navigate(`#/t/${lastTournamentId}/leaderboard`) : undefined}
+        />
         <VegasApp onExit={() => navigate('#/')} initialJoinCode={joinCode} />
       </>
     );
