@@ -93,7 +93,12 @@ export function calculatePlayerMoney(
       const n4 = getNetScore(g4, p4.strokesReceived, hole.handicapRating);
 
       const result = calculateVegasPoints([n1, n2], [n3, n4], hole.par, [g1, g2], [g3, g4]);
-      const mult = multValue(multipliers?.[match.id]?.[h] || 'none');
+      // Firebase may return multipliers as array or object with string keys
+      const matchMults = multipliers?.[match.id];
+      const holeMultRaw = matchMults
+        ? (matchMults as Record<string, string>)[String(h)] ?? (matchMults as Record<number, string>)[h]
+        : undefined;
+      const mult = multValue(holeMultRaw || 'none');
       matchTotal += result.points * mult;
     }
 

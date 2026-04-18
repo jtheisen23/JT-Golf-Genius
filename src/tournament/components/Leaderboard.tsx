@@ -210,7 +210,7 @@ export default function Leaderboard({ tournament, onBack }: Props) {
                   >
                     {vegasMoney == null
                       ? '—'
-                      : `${vegasMoney >= 0 ? '+' : ''}$${Math.abs(vegasMoney).toFixed(0)}`}
+                      : `${vegasMoney >= 0 ? '+' : '-'}$${Math.abs(vegasMoney).toFixed(2)}`}
                   </div>
                 )}
               </div>
