@@ -25,6 +25,8 @@ export interface SyncAdapter {
   subscribe(eventId: string, listener: (t: Tournament) => void): () => void;
   listEventIds(): string[];
   remove(eventId: string): void;
+  /** Fetch all tournaments from Firebase, populate cache, return them. */
+  fetchAll(): Promise<Tournament[]>;
 }
 
 /**
@@ -107,6 +109,21 @@ export class FirebaseSync implements SyncAdapter {
     this.cache.delete(eventId);
     fbRemove(ref(db, `tournaments/${eventId}`));
     fbRemove(ref(db, `tournament-index/${eventId}`));
+  }
+
+  async fetchAll(): Promise<Tournament[]> {
+    const snap = await get(ref(db, 'tournaments'));
+    const val = snap.val();
+    if (!val) return [];
+    const tournaments: Tournament[] = [];
+    for (const [id, raw] of Object.entries(val)) {
+      const t = sanitizeTournament(raw as Record<string, unknown>);
+      this.cache.set(id, t);
+      tournaments.push(t);
+    }
+    // Also update index
+    this.indexIds = tournaments.map((t) => t.id);
+    return tournaments;
   }
 }
 

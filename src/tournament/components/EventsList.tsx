@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { sync } from '../sync';
 import { createTournament } from '../useTournament';
 import { PLAY_DAYS, PLAY_DAY_LABELS, formatPlayDate, isFuture, nextDateForDay } from '../dateUtils';
@@ -48,7 +48,21 @@ export default function EventsList({
   const [name, setName] = useState('');
   const [courseName, setCourseName] = useState('');
 
-  const refresh = () => setEvents(loadAllEvents());
+  // Fetch all tournaments from Firebase on mount (cache may be empty after refresh)
+  useEffect(() => {
+    sync.fetchAll().then((all) => {
+      if (all.length > 0) setEvents(all);
+    });
+  }, []);
+
+  const refresh = () => {
+    // Try cache first, then fetch from Firebase
+    const cached = loadAllEvents();
+    setEvents(cached);
+    if (cached.length === 0) {
+      sync.fetchAll().then((all) => setEvents(all));
+    }
+  };
 
   const createForDay = (day: PlayDay) => {
     const t = createTournament({
