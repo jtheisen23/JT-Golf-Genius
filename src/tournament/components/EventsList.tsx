@@ -62,16 +62,18 @@ export default function EventsList({
   };
 
   const createOther = () => {
-    if (!name.trim()) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
     const t = createTournament({
-      name: name.trim(),
+      name: trimmed,
       courseName: courseName.trim() || 'Course',
     });
     sync.save(t);
+    // Navigate first, then clean up form state
+    onOpenEvent(t.id);
     setName('');
     setCourseName('');
     setCreatingOther(false);
-    onOpenEvent(t.id);
   };
 
   const handleDelete = (id: string) => {
@@ -147,7 +149,10 @@ export default function EventsList({
           + New one-off event
         </button>
       ) : (
-        <div className="bg-neutral-900 rounded-lg p-4 mb-3 space-y-3">
+        <form
+          className="bg-neutral-900 rounded-lg p-4 mb-3 space-y-3"
+          onSubmit={(e) => { e.preventDefault(); createOther(); }}
+        >
           <input
             autoFocus
             value={name}
@@ -163,6 +168,7 @@ export default function EventsList({
           />
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => {
                 setCreatingOther(false);
                 setName('');
@@ -173,14 +179,14 @@ export default function EventsList({
               Cancel
             </button>
             <button
-              onClick={createOther}
+              type="submit"
               disabled={!name.trim()}
-              className="flex-1 py-2 bg-emerald-600 rounded text-sm font-semibold disabled:opacity-40"
+              className="flex-1 py-2 bg-emerald-600 rounded text-sm font-semibold disabled:opacity-40 active:bg-emerald-700 active:scale-95 transition-all duration-100"
             >
               Create
             </button>
           </div>
-        </div>
+        </form>
       )}
       {others.length > 0 && (
         <div className="space-y-1">
