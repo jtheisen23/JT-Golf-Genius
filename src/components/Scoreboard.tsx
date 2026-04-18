@@ -303,26 +303,36 @@ export default function Scoreboard({
 
               return (
                 <div key={match.id} className="bg-neutral-900 rounded-xl p-4 mb-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <span className="text-red-400 text-sm font-semibold">{t1.join(' & ')}</span>
-                      <span className="text-neutral-500 text-sm mx-2">vs</span>
-                      <span className="text-orange-300 text-sm font-semibold">{t2.join(' & ')}</span>
-                    </div>
-                    <span className={`font-bold text-lg ${total > 0 ? 'text-red-500' : total < 0 ? 'text-orange-400' : 'text-neutral-400'}`}>
-                      {total > 0 ? '+' : ''}{total} pts
-                    </span>
-                  </div>
-                  <div className="text-right text-sm">
-                    <span className={`font-semibold ${total > 0 ? 'text-red-500' : total < 0 ? 'text-orange-400' : 'text-neutral-400'}`}>
-                      ${Math.abs(total * pointValue).toFixed(2)}
-                      {total !== 0 && (
-                        <span className="text-neutral-500 ml-1">
-                          to {total > 0 ? t1.join(' & ') : t2.join(' & ')}
-                        </span>
-                      )}
-                    </span>
-                  </div>
+                  {(() => {
+                    const leadTeam = total > 0 ? t1.join(' & ') : t2.join(' & ');
+                    const trailTeam = total > 0 ? t2.join(' & ') : t1.join(' & ');
+                    const leadColor = total > 0 ? 'text-red-400' : 'text-orange-300';
+                    const trailColor = total > 0 ? 'text-orange-300' : 'text-red-400';
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <span className={`text-sm font-semibold ${leadColor}`}>{leadTeam}</span>
+                            <span className="text-neutral-500 text-sm mx-2">vs</span>
+                            <span className={`text-sm font-semibold ${trailColor}`}>{trailTeam}</span>
+                          </div>
+                          <span className={`font-bold text-lg ${total === 0 ? 'text-neutral-400' : leadColor}`}>
+                            {total === 0 ? '0' : `+${Math.abs(total)}`} pts
+                          </span>
+                        </div>
+                        <div className="text-right text-sm">
+                          <span className={`font-semibold ${total === 0 ? 'text-neutral-400' : leadColor}`}>
+                            ${Math.abs(total * pointValue).toFixed(2)}
+                            {total !== 0 && (
+                              <span className="text-neutral-500 ml-1">
+                                to {leadTeam}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
 
                   {/* Hole-by-hole breakdown */}
                   <div className="mt-3 pt-3 border-t border-neutral-800">
