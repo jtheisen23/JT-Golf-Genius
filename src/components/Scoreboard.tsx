@@ -349,20 +349,13 @@ export default function Scoreboard({
                         if (!result) return <div key={h} className="text-neutral-600">-</div>;
                         const mult = getMultiplier(match.id, h);
                         const multVal = getMultiplierValue(mult);
-                        const pts = result.points * multVal;
+                        const rawPts = result.points * multVal;
+                        // Color matches team: positive (team1 won) = red, negative (team2 won) = orange
+                        const holeColor = rawPts > 0 ? 'text-red-400' : rawPts < 0 ? 'text-orange-300' : 'text-neutral-500';
                         const multLabel = mult === 'press' ? 'P' : mult === 'roll' ? 'R' : mult === 're-roll' ? 'RR' : '';
                         return (
-                          <div
-                            key={h}
-                            className={`font-semibold ${
-                              pts > 0
-                                ? 'text-red-500'
-                                : pts < 0
-                                ? 'text-orange-400'
-                                : 'text-neutral-500'
-                            }`}
-                          >
-                            {pts > 0 ? '+' : ''}{pts}
+                          <div key={h} className={`font-semibold ${holeColor}`}>
+                            {rawPts === 0 ? '0' : `+${Math.abs(rawPts)}`}
                             {multLabel && <div className="text-yellow-400 text-[9px]">{multLabel}</div>}
                           </div>
                         );
