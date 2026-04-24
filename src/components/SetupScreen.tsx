@@ -361,16 +361,16 @@ export default function SetupScreen({
       {/* Matches Step */}
       {step === 'matches' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold text-neutral-200">Matches</h2>
+          <div className="mb-2">
+            <h2 className="text-lg font-semibold text-neutral-200 mb-2">Matches</h2>
             <button
               onClick={() => {
                 onSetMatches([]);
                 onAutoGenerateMatches();
               }}
-              className="text-sm bg-neutral-800 text-neutral-300 px-3 py-1.5 rounded-lg"
+              className="w-full text-sm bg-neutral-800 text-neutral-300 px-3 py-2 rounded-lg"
             >
-              Auto-Generate
+              🎲 Randomize Teams (Auto-Generate)
             </button>
           </div>
 
