@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Player, Match, HoleSetup, HandicapMode } from '../types';
+import PlayerIndexInput, { formatHandicap } from './PlayerIndexInput';
 
 interface Props {
   players: Player[];
@@ -7,6 +8,8 @@ interface Props {
   matches: Match[];
   courseName: string;
   pointValue: number;
+  slope: number;
+  courseRating: number;
   onUpdatePlayer: (id: string, field: keyof Player, value: string | number) => void;
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
@@ -17,6 +20,8 @@ interface Props {
   onSetMatches: (matches: Match[]) => void;
   onSetCourseName: (name: string) => void;
   onSetPointValue: (value: number) => void;
+  onSetSlope: (value: number) => void;
+  onSetCourseRating: (value: number) => void;
   handicapMode: HandicapMode;
   onSetHandicapMode: (mode: HandicapMode) => void;
   onStart: () => void;
@@ -31,6 +36,8 @@ export default function SetupScreen({
   matches,
   courseName,
   pointValue,
+  slope,
+  courseRating,
   onUpdatePlayer,
   onAddPlayer,
   onRemovePlayer,
@@ -40,6 +47,8 @@ export default function SetupScreen({
   onSetMatches,
   onSetCourseName,
   onSetPointValue,
+  onSetSlope,
+  onSetCourseRating,
   handicapMode,
   onSetHandicapMode,
   onAddMatch,
@@ -58,6 +67,10 @@ export default function SetupScreen({
   const [newMatchTeam2, setNewMatchTeam2] = useState<[string, string]>(['', '']);
 
   const canProceedFromPlayers = players.length >= 4 && players.every((p) => p.name.trim());
+
+  const totalPar = holes.reduce((sum, h) => sum + h.par, 0);
+  const computeHandicap = (index: number, s = slope, r = courseRating, p = totalPar) =>
+    Math.round(index * (s / 113) + (r - p));
 
   const handleAddMatch = () => {
     if (newMatchTeam1[0] && newMatchTeam1[1] && newMatchTeam2[0] && newMatchTeam2[1]) {
@@ -145,8 +158,8 @@ export default function SetupScreen({
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="col-span-2">
                   <label className="text-xs text-neutral-400 mb-1 block">Name</label>
                   <input
                     type="text"
@@ -156,16 +169,27 @@ export default function SetupScreen({
                     className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-neutral-400 mb-1 block">Index</label>
+                  <PlayerIndexInput
+                    value={player.handicapIndex || 0}
+                    onChange={(idx) => {
+                      onUpdatePlayer(player.id, 'handicapIndex', idx);
+                      onUpdatePlayer(player.id, 'handicap', computeHandicap(idx));
+                    }}
+                    className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+                  />
+                </div>
                 <div>
                   <label className="text-xs text-neutral-400 mb-1 block">Handicap</label>
                   <input
-                    type="number"
-                    value={player.handicap || ''}
-                    onChange={(e) =>
-                      onUpdatePlayer(player.id, 'handicap', parseInt(e.target.value) || 0)
-                    }
-                    placeholder="0"
-                    className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+                    type="text"
+                    value={formatHandicap(computeHandicap(player.handicapIndex || 0))}
+                    readOnly
+                    tabIndex={-1}
+                    className="w-full bg-neutral-800/50 text-neutral-300 rounded-lg px-3 py-2 text-sm border border-neutral-700 cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -182,6 +206,53 @@ export default function SetupScreen({
               min="0"
               className="w-32 bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
             />
+          </div>
+
+          <div className="mt-4 bg-neutral-900 rounded-xl p-3">
+            <div className="text-xs text-neutral-400 mb-2">Course Rating (par {totalPar})</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-neutral-500 mb-1 block">Slope</label>
+                <input
+                  type="number"
+                  value={slope}
+                  onChange={(e) => {
+                    const newSlope = parseInt(e.target.value) || 113;
+                    onSetSlope(newSlope);
+                    players.forEach((p) => {
+                      onUpdatePlayer(
+                        p.id,
+                        'handicap',
+                        computeHandicap(p.handicapIndex || 0, newSlope, courseRating, totalPar),
+                      );
+                    });
+                  }}
+                  min="55"
+                  max="155"
+                  className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-neutral-500 mb-1 block">Rating</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={courseRating}
+                  onChange={(e) => {
+                    const newRating = parseFloat(e.target.value) || 72;
+                    onSetCourseRating(newRating);
+                    players.forEach((p) => {
+                      onUpdatePlayer(
+                        p.id,
+                        'handicap',
+                        computeHandicap(p.handicapIndex || 0, slope, newRating, totalPar),
+                      );
+                    });
+                  }}
+                  className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="mt-4">

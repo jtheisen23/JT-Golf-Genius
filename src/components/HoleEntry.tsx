@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Player, Match, HoleSetup, Multiplier, HandicapMode } from '../types';
 import { getNetScore } from '../utils/scoring';
 import { getStrokesOnHole } from '../utils/handicap';
+import PlayerIndexInput, { formatHandicap } from './PlayerIndexInput';
 
 interface Props {
   players: Player[];
@@ -23,6 +24,8 @@ interface Props {
   onUpdatePlayer: (id: string, field: keyof Player, value: string | number) => void;
   handicapMode: HandicapMode;
   onSetHandicapMode: (mode: HandicapMode) => void;
+  slope: number;
+  courseRating: number;
   onRecalculateStrokes: () => void;
   onAutoGenerateMatches: () => void;
   onAddMatch: (team1: [string, string], team2: [string, string], rotation: number) => void;
@@ -50,6 +53,8 @@ export default function HoleEntry({
   onUpdatePlayer,
   handicapMode,
   onSetHandicapMode,
+  slope,
+  courseRating,
   onRecalculateStrokes,
   onAutoGenerateMatches,
   onAddMatch,
@@ -62,6 +67,9 @@ export default function HoleEntry({
   const [newMatchTeam1, setNewMatchTeam1] = useState<[string, string]>(['', '']);
   const [newMatchTeam2, setNewMatchTeam2] = useState<[string, string]>(['', '']);
   const hole = holes.find((h) => h.number === currentHole)!;
+  const totalPar = holes.reduce((sum, h) => sum + h.par, 0);
+  const computeHandicap = (index: number) =>
+    Math.round(index * (slope / 113) + (courseRating - totalPar));
   const activeMatches = getActiveMatches();
   const rotation = getCurrentRotation();
 
@@ -120,20 +128,19 @@ export default function HoleEntry({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-neutral-400 mb-1 block">Handicap</label>
-                    <input
-                      type="number"
-                      value={player.handicap || ''}
-                      onChange={(e) =>
-                        onUpdatePlayer(player.id, 'handicap', parseInt(e.target.value) || 0)
-                      }
-                      placeholder="0"
+                    <label className="text-xs text-neutral-400 mb-1 block">Index</label>
+                    <PlayerIndexInput
+                      value={player.handicapIndex || 0}
+                      onChange={(idx) => {
+                        onUpdatePlayer(player.id, 'handicapIndex', idx);
+                        onUpdatePlayer(player.id, 'handicap', computeHandicap(idx));
+                      }}
                       className="w-full bg-neutral-700 text-white rounded-lg px-3 py-2 text-sm border border-neutral-600 focus:border-red-500 focus:outline-none"
                     />
                   </div>
                 </div>
                 <div className="text-xs text-neutral-500 mt-2">
-                  Strokes received: {player.strokesReceived}
+                  Handicap: {formatHandicap(computeHandicap(player.handicapIndex || 0))} · Strokes received: {player.strokesReceived}
                 </div>
               </div>
             ))}

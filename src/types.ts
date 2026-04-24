@@ -1,6 +1,7 @@
 export interface Player {
   id: string;
   name: string;
+  handicapIndex: number;
   handicap: number;
   strokesReceived: number;
 }
@@ -34,6 +35,8 @@ export interface Round {
   matches: Match[];
   scores: Record<string, Record<number, number>>; // playerId -> holeNumber -> gross score
   pointsPerDollar: number;
+  slope?: number;
+  courseRating?: number;
 }
 
 export interface SavedRound extends Round {

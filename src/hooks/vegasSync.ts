@@ -16,6 +16,8 @@ export interface VegasGameState {
   multipliers: Record<string, Record<number, Multiplier>>;
   handicapMode: HandicapMode;
   screen: string;
+  slope?: number;
+  courseRating?: number;
 }
 
 function generateCode(): string {
@@ -66,6 +68,7 @@ export async function createVegasGameFromTournament(
   const rawPlayers: Player[] = tourPlayers.map((tp) => ({
     id: tp.id,
     name: tp.name,
+    handicapIndex: (tp as { handicapIndex?: number }).handicapIndex ?? tp.courseHandicap,
     handicap: tp.courseHandicap,
     strokesReceived: 0,
   }));

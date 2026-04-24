@@ -38,11 +38,14 @@ export function useRound() {
 
   const [screen, setScreen] = useState<Screen>(saved?.screen || 'setup');
   const [players, setPlayers] = useState<Player[]>(
-    saved?.players || [
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
+    (saved?.players as Player[] | undefined)?.map((p) => ({
+      ...p,
+      handicapIndex: p.handicapIndex ?? p.handicap ?? 0,
+    })) || [
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
     ]
   );
   const [holes, setHoles] = useState<HoleSetup[]>(saved?.holes || DEFAULT_HOLES);
@@ -52,6 +55,8 @@ export function useRound() {
   const [courseName, setCourseName] = useState(saved?.courseName || 'Geneva Golf Club');
   const [pointValue, setPointValue] = useState(saved?.pointValue || 0.5);
   const [handicapMode, setHandicapMode] = useState<HandicapMode>(saved?.handicapMode || 'off-the-low');
+  const [slope, setSlope] = useState<number>(saved?.slope || 132);
+  const [courseRating, setCourseRating] = useState<number>(saved?.courseRating || 70);
   const [multipliers, setMultipliers] = useState<Record<string, Record<number, Multiplier>>>(saved?.multipliers || {});
   const [gameCode, setGameCode] = useState<string | null>(loadGameCode);
 
@@ -73,6 +78,8 @@ export function useRound() {
       setPointValue(remote.pointValue);
       setMultipliers(remote.multipliers || {});
       setHandicapMode(remote.handicapMode);
+      if (remote.slope != null) setSlope(remote.slope);
+      if (remote.courseRating != null) setCourseRating(remote.courseRating);
       // Clear the flag after a microtask so the subsequent useEffect skip works
       queueMicrotask(() => { isRemoteUpdate.current = false; });
     });
@@ -81,22 +88,22 @@ export function useRound() {
 
   // Auto-save to localStorage (includes currentHole for local restore)
   useEffect(() => {
-    const state = { screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode };
+    const state = { screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode, slope, courseRating };
     localStorage.setItem(ACTIVE_ROUND_KEY, JSON.stringify(state));
-  }, [screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode]);
+  }, [screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode, slope, courseRating]);
 
   // Sync to Firebase (excludes currentHole — each device navigates independently)
   useEffect(() => {
     if (!gameCode || isRemoteUpdate.current) return;
-    const state = { screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode };
+    const state = { screen, players, holes, matches, scores, currentHole, courseName, pointValue, multipliers, handicapMode, slope, courseRating };
     saveVegasGame(gameCode, state);
-  }, [screen, players, holes, matches, scores, courseName, pointValue, multipliers, handicapMode, gameCode]);
+  }, [screen, players, holes, matches, scores, courseName, pointValue, multipliers, handicapMode, slope, courseRating, gameCode]);
 
   const addPlayer = useCallback(() => {
     if (players.length >= 5) return;
     setPlayers((prev) => [
       ...prev,
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
     ]);
   }, [players.length]);
 
@@ -166,6 +173,8 @@ export function useRound() {
     setScores(saved.scores);
     setCourseName(saved.courseName);
     setPointValue(saved.pointsPerDollar);
+    if (saved.slope != null) setSlope(saved.slope);
+    if (saved.courseRating != null) setCourseRating(saved.courseRating);
     setMultipliers(saved.multipliers || {});
     setCurrentHole(1);
     setScreen('scoreboard');
@@ -174,10 +183,10 @@ export function useRound() {
   // Clear players/matches/scores for a fresh game, keeping course + holes + point value.
   const resetForNewGame = useCallback(() => {
     setPlayers([
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
     ]);
     setMatches([]);
     setScores({});
@@ -211,11 +220,13 @@ export function useRound() {
       pointValue,
       multipliers,
       handicapMode,
+      slope,
+      courseRating,
     };
     const code = await createVegasGame(state);
     setGameCode(code);
     localStorage.setItem(ACTIVE_GAME_CODE_KEY, code);
-  }, [players, handicapMode, holes, matches, courseName, pointValue, multipliers]);
+  }, [players, handicapMode, holes, matches, courseName, pointValue, multipliers, slope, courseRating]);
 
   const joinGame = useCallback(async (code: string): Promise<boolean> => {
     const remote = await loadVegasGame(code);
@@ -230,6 +241,8 @@ export function useRound() {
     setPointValue(remote.pointValue);
     setMultipliers(remote.multipliers || {});
     setHandicapMode(remote.handicapMode);
+    if (remote.slope != null) setSlope(remote.slope);
+    if (remote.courseRating != null) setCourseRating(remote.courseRating);
     setGameCode(code.toUpperCase());
     localStorage.setItem(ACTIVE_GAME_CODE_KEY, code.toUpperCase());
     return true;
@@ -374,6 +387,8 @@ export function useRound() {
       matches,
       scores,
       pointsPerDollar: pointValue,
+      slope,
+      courseRating,
       results,
       multipliers,
     };
@@ -384,16 +399,16 @@ export function useRound() {
     setGameCode(null);
 
     setPlayers([
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
-      { id: generateId(), name: '', handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
+      { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },
     ]);
     setMatches([]);
     setScores({});
     setMultipliers({});
     setCurrentHole(1);
-  }, [matches, getMatchTotal, players, courseName, holes, scores, pointValue]);
+  }, [matches, getMatchTotal, players, courseName, holes, scores, pointValue, slope, courseRating]);
 
   return {
     screen,
@@ -431,6 +446,10 @@ export function useRound() {
     setMatchMultiplier,
     handicapMode,
     setHandicapMode,
+    slope,
+    setSlope,
+    courseRating,
+    setCourseRating,
     recalculateStrokes,
     resetForNewGame,
     loadSavedRound,
