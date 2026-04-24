@@ -51,7 +51,11 @@ export default function PlayerIndexInput({ value, onChange, className, placehold
   return (
     <input
       type="text"
-      inputMode="decimal"
+      // Use full keyboard (not numeric) so mobile users can type "+" for plus handicaps
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
       value={raw}
       onChange={(e) => {
         const s = e.target.value;
