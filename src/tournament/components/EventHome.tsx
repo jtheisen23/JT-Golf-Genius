@@ -67,8 +67,9 @@ export default function EventHome({
   const registered = Object.values(tournament.players);
   const handleRandomize = () => {
     if (registered.length === 0) return;
+    const existingGroups = tournament.groups || [];
     const ok =
-      tournament.groups.length === 0 ||
+      existingGroups.length === 0 ||
       confirm('Replace existing groups with a fresh random draw?');
     if (!ok) return;
     // Fall back to 08:00 / 12 min so events created before tee-time fields existed
@@ -114,9 +115,9 @@ export default function EventHome({
     return `${h}:${min} ${ampm}`;
   };
 
-  const totalPlayers = Object.keys(tournament.players).length;
-  const totalGroups = tournament.groups.length;
-  const totalScoresPosted = Object.values(tournament.scores).reduce(
+  const totalPlayers = Object.keys(tournament.players || {}).length;
+  const totalGroups = (tournament.groups || []).length;
+  const totalScoresPosted = Object.values(tournament.scores || {}).reduce(
     (acc, g) => acc + Object.values(g).reduce((a, s) => a + Object.keys(s).length, 0),
     0,
   );
@@ -332,7 +333,7 @@ export default function EventHome({
               >
                 🎲 Randomize foursomes
               </button>
-              {tournament.groups.length > 0 && (
+              {(tournament.groups || []).length > 0 && (
                 <button
                   onClick={handleUndoRandomize}
                   className="text-sm bg-neutral-700 text-white px-3 py-2.5 rounded font-semibold active:bg-neutral-600"
@@ -353,7 +354,9 @@ export default function EventHome({
         </p>
       )}
       <div className="space-y-2">
-        {tournament.groups.map((g) => {
+        {(tournament.groups || []).map((rawG) => {
+          // Firebase strips empty arrays — normalize so .map / .length never throws.
+          const g = { ...rawG, playerIds: Array.isArray(rawG.playerIds) ? rawG.playerIds : [] };
           const playerNames = g.playerIds
             .map((id) => tournament.players[id]?.name || '?')
             .join(', ');
@@ -361,7 +364,7 @@ export default function EventHome({
             (a, s) => a + Object.keys(s).length,
             0,
           );
-          const expected = g.playerIds.length * tournament.holes.length;
+          const expected = g.playerIds.length * (tournament.holes?.length ?? 18);
           const hasVegas = !!g.vegasGameCode;
           const canLaunchVegas = g.playerIds.length >= 4;
 
@@ -449,144 +452,31 @@ export default function EventHome({
         })}
       </div>
 
-      {editingGroupId && (() => {
-        const group = tournament.groups.find((g) => g.id === editingGroupId);
-        if (!group) return null;
-        const inThisGroup = new Set(group.playerIds);
-        // A player is "available" to add if they're either already in this group
-        // (so we can show them checked) or not assigned to any group.
-        const assignedElsewhere = new Set(
-          tournament.groups
-            .filter((g) => g.id !== editingGroupId)
-            .flatMap((g) => g.playerIds),
-        );
-        const allRegistered = Object.values(tournament.players);
-
-        const togglePlayer = (pid: string) => {
-          if (inThisGroup.has(pid)) {
-            // Uncheck = remove from this group
-            onUpdateGroup(group.id, {
-              playerIds: group.playerIds.filter((id) => id !== pid),
-            });
-          } else {
-            // Check = add to this group, and pull them out of any other group
-            const otherGroup = tournament.groups.find(
-              (g) => g.id !== group.id && g.playerIds.includes(pid),
-            );
-            if (otherGroup) {
-              onUpdateGroup(otherGroup.id, {
-                playerIds: otherGroup.playerIds.filter((id) => id !== pid),
-              });
-            }
-            onUpdateGroup(group.id, { playerIds: [...group.playerIds, pid] });
-          }
-        };
-
-        return (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div className="bg-neutral-900 rounded-xl p-4 w-full max-w-md max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-bold text-lg">Edit {group.name}</h3>
-                <button
-                  onClick={() => setEditingGroupId(null)}
-                  className="text-neutral-400 text-xl leading-none px-2"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <label className="block">
-                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
-                    Group name
-                  </div>
-                  <input
-                    value={group.name}
-                    onChange={(e) => onUpdateGroup(group.id, { name: e.target.value })}
-                    className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
-                  />
-                </label>
-                <label className="block">
-                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
-                    Tee time
-                  </div>
-                  <input
-                    type="time"
-                    value={group.teeTime || ''}
-                    onChange={(e) =>
-                      onUpdateGroup(group.id, { teeTime: e.target.value || undefined })
-                    }
-                    className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
-                  />
-                </label>
-              </div>
-
-              <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">
-                Players ({group.playerIds.length} in group)
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-1 mb-3">
-                {allRegistered.length === 0 && (
-                  <p className="text-xs text-neutral-500">No registered players yet.</p>
-                )}
-                {allRegistered.map((p) => {
-                  const checked = inThisGroup.has(p.id);
-                  const elsewhere = !checked && assignedElsewhere.has(p.id);
-                  const otherGroupName = elsewhere
-                    ? tournament.groups.find((g) => g.playerIds.includes(p.id))?.name
-                    : null;
-                  return (
-                    <label
-                      key={p.id}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
-                        checked ? 'bg-emerald-900/30' : 'bg-neutral-800/50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => togglePlayer(p.id)}
-                        className="accent-emerald-600"
-                      />
-                      <span className={checked ? 'text-white' : 'text-neutral-300'}>
-                        {p.name || '(no name)'}
-                      </span>
-                      {elsewhere && otherGroupName && (
-                        <span className="ml-auto text-[10px] text-amber-400">
-                          in {otherGroupName} — adding will move
-                        </span>
-                      )}
-                    </label>
-                  );
-                })}
-              </div>
-
-              <button
-                onClick={() => setEditingGroupId(null)}
-                className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold active:bg-emerald-700"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+      {editingGroupId && (
+        <EditGroupModal
+          tournament={tournament}
+          groupId={editingGroupId}
+          onUpdateGroup={onUpdateGroup}
+          onClose={() => setEditingGroupId(null)}
+        />
+      )}
 
       {movingPlayer && (() => {
+        const allGroups = tournament.groups || [];
         const player = tournament.players[movingPlayer.playerId];
-        const fromGroup = tournament.groups.find((g) => g.id === movingPlayer.fromGroupId);
-        const otherGroups = tournament.groups.filter((g) => g.id !== movingPlayer.fromGroupId);
+        const fromGroup = allGroups.find((g) => g.id === movingPlayer.fromGroupId);
+        const otherGroups = allGroups.filter((g) => g.id !== movingPlayer.fromGroupId);
         if (!player || !fromGroup) return null;
+        const fromIds = Array.isArray(fromGroup.playerIds) ? fromGroup.playerIds : [];
 
         const handleMove = (toGroupId: string) => {
-          // Remove from current group
           onUpdateGroup(movingPlayer.fromGroupId, {
-            playerIds: fromGroup.playerIds.filter((id) => id !== movingPlayer.playerId),
+            playerIds: fromIds.filter((id) => id !== movingPlayer.playerId),
           });
-          // Add to target group
-          const toGroup = tournament.groups.find((g) => g.id === toGroupId)!;
+          const toGroup = allGroups.find((g) => g.id === toGroupId);
+          const toIds = Array.isArray(toGroup?.playerIds) ? toGroup!.playerIds : [];
           onUpdateGroup(toGroupId, {
-            playerIds: [...toGroup.playerIds, movingPlayer.playerId],
+            playerIds: [...toIds, movingPlayer.playerId],
           });
           setMovingPlayer(null);
         };
@@ -600,7 +490,8 @@ export default function EventHome({
               </p>
               <div className="space-y-2">
                 {otherGroups.map((g) => {
-                  const names = g.playerIds
+                  const ids = Array.isArray(g.playerIds) ? g.playerIds : [];
+                  const names = ids
                     .map((id) => tournament.players[id]?.name || '?')
                     .join(', ');
                   return (
@@ -625,6 +516,153 @@ export default function EventHome({
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+/**
+ * Modal for editing a single group: name, tee time, and player roster.
+ *
+ * Pulled out into a separate component so it always reads `group` from the
+ * latest `tournament` prop (avoiding stale-closure bugs from the IIFE pattern
+ * we used previously). All mutations go through onUpdateGroup, which is
+ * fed by the live `useTournament` mutator and reflects updates on next render.
+ */
+function EditGroupModal({
+  tournament,
+  groupId,
+  onUpdateGroup,
+  onClose,
+}: {
+  tournament: Tournament;
+  groupId: string;
+  onUpdateGroup: (id: string, patch: Partial<TourGroup>) => void;
+  onClose: () => void;
+}) {
+  const groups = Array.isArray(tournament.groups) ? tournament.groups : [];
+  const group = groups.find((g) => g.id === groupId);
+
+  // If the group disappears (e.g. groups were cleared via Undo), close gracefully.
+  if (!group) {
+    return null;
+  }
+
+  const groupPlayerIds = Array.isArray(group.playerIds) ? group.playerIds : [];
+  const inThisGroup = new Set(groupPlayerIds);
+  const allRegistered = Object.values(tournament.players ?? {});
+
+  const togglePlayer = (pid: string) => {
+    // Re-resolve from `groups` each call — never trust captured arrays.
+    const currentGroup = groups.find((g) => g.id === groupId);
+    if (!currentGroup) return;
+    const currentIds = Array.isArray(currentGroup.playerIds) ? currentGroup.playerIds : [];
+
+    if (currentIds.includes(pid)) {
+      onUpdateGroup(currentGroup.id, {
+        playerIds: currentIds.filter((id) => id !== pid),
+      });
+      return;
+    }
+    // Adding: pull them from any other group first.
+    const otherGroup = groups.find(
+      (g) => g.id !== currentGroup.id && Array.isArray(g.playerIds) && g.playerIds.includes(pid),
+    );
+    if (otherGroup) {
+      onUpdateGroup(otherGroup.id, {
+        playerIds: (otherGroup.playerIds || []).filter((id) => id !== pid),
+      });
+    }
+    onUpdateGroup(currentGroup.id, { playerIds: [...currentIds, pid] });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-neutral-900 rounded-xl p-4 w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-lg">Edit {group.name}</h3>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 text-xl leading-none px-2"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <label className="block">
+            <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
+              Group name
+            </div>
+            <input
+              value={group.name || ''}
+              onChange={(e) => onUpdateGroup(group.id, { name: e.target.value })}
+              className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+            />
+          </label>
+          <label className="block">
+            <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
+              Tee time
+            </div>
+            <input
+              type="time"
+              value={group.teeTime || ''}
+              onChange={(e) => {
+                // Empty -> '' (avoid Firebase rejecting undefined); non-empty -> "HH:MM"
+                onUpdateGroup(group.id, { teeTime: e.target.value || '' });
+              }}
+              className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+            />
+          </label>
+        </div>
+
+        <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">
+          Players ({groupPlayerIds.length} in group)
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-1 mb-3">
+          {allRegistered.length === 0 && (
+            <p className="text-xs text-neutral-500">No registered players yet.</p>
+          )}
+          {allRegistered.map((p) => {
+            const checked = inThisGroup.has(p.id);
+            const otherGroupName = !checked
+              ? groups.find(
+                  (g) => g.id !== groupId && Array.isArray(g.playerIds) && g.playerIds.includes(p.id),
+                )?.name
+              : undefined;
+            return (
+              <label
+                key={p.id}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
+                  checked ? 'bg-emerald-900/30' : 'bg-neutral-800/50'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => togglePlayer(p.id)}
+                  className="accent-emerald-600"
+                />
+                <span className={checked ? 'text-white' : 'text-neutral-300'}>
+                  {p.name || '(no name)'}
+                </span>
+                {otherGroupName && (
+                  <span className="ml-auto text-[10px] text-amber-400">
+                    in {otherGroupName} — adding will move
+                  </span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold active:bg-emerald-700"
+        >
+          Done
+        </button>
+      </div>
     </div>
   );
 }

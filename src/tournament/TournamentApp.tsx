@@ -1,6 +1,28 @@
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useTournament } from './useTournament';
 import EventsList from './components/EventsList';
 import EventHome from './components/EventHome';
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[ErrorBoundary]', error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="p-4 bg-black text-red-300 min-h-screen">
+          <h1 className="font-bold mb-2">Something broke</h1>
+          <pre className="text-xs whitespace-pre-wrap">{String(this.state.error?.message)}</pre>
+          <pre className="text-[10px] text-red-400/70 whitespace-pre-wrap mt-2">{this.state.error?.stack}</pre>
+          <button onClick={() => this.setState({ error: null })} className="mt-3 bg-red-700 text-white px-3 py-1 rounded text-sm">Try again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import TournamentSetup from './components/TournamentSetup';
 import GroupScoring from './components/GroupScoring';
 import Leaderboard from './components/Leaderboard';
@@ -129,19 +151,22 @@ export default function TournamentApp({ route, onNavigate, onExit }: Props) {
   }
 
   return (
-    <EventHome
-      tournament={tournament}
-      onOpenGroup={(gid) => onNavigate(`#/t/${tournament.id}/group/${gid}`)}
-      onOpenLeaderboard={() => onNavigate(`#/t/${tournament.id}/leaderboard`)}
-      onOpenRegistration={() => onNavigate(`#/t/${tournament.id}/register`)}
-      onSetGroups={setGroups}
-      onRemovePlayer={removePlayer}
-      onUpdatePlayer={updatePlayer}
-      onUpdateGroup={updateGroup}
-      onUpdateMeta={updateMeta}
-      onLaunchVegas={(code) => onNavigate(`#/vegas/join/${code}`)}
-      onEditSetup={() => onNavigate(`#/t/${tournament.id}/setup`)}
-      onExit={() => onNavigate('#/t')}
-    />
+    <ErrorBoundary>
+      <EventHome
+        tournament={tournament}
+        onOpenGroup={(gid) => onNavigate(`#/t/${tournament.id}/group/${gid}`)}
+        onOpenLeaderboard={() => onNavigate(`#/t/${tournament.id}/leaderboard`)}
+        onOpenRegistration={() => onNavigate(`#/t/${tournament.id}/register`)}
+        onSetGroups={setGroups}
+        onRemovePlayer={removePlayer}
+        onUpdatePlayer={updatePlayer}
+        onUpdateGroup={updateGroup}
+        onUpdateMeta={updateMeta}
+        onLaunchVegas={(code) => onNavigate(`#/vegas/join/${code}`)}
+        onEditSetup={() => onNavigate(`#/t/${tournament.id}/setup`)}
+        onExit={() => onNavigate('#/t')}
+      />
+    </ErrorBoundary>
   );
 }
+
