@@ -138,6 +138,7 @@ export default function TournamentApp({ route, onNavigate, onExit }: Props) {
       onRemovePlayer={removePlayer}
       onUpdatePlayer={updatePlayer}
       onUpdateGroup={updateGroup}
+      onUpdateMeta={updateMeta}
       onLaunchVegas={(code) => onNavigate(`#/vegas/join/${code}`)}
       onEditSetup={() => onNavigate(`#/t/${tournament.id}/setup`)}
       onExit={() => onNavigate('#/t')}

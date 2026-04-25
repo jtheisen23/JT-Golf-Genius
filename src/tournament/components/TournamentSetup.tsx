@@ -16,7 +16,21 @@ interface Props {
   onRemoveGroup: (id: string) => void;
   onSetGroups: (groups: TourGroup[]) => void;
   onUpdateHole: (n: number, patch: { par?: number; handicapRating?: number }) => void;
-  onUpdateMeta: (patch: Partial<Pick<Tournament, 'name' | 'courseName' | 'date' | 'format' | 'handicapAllowance' | 'playDay'>>) => void;
+  onUpdateMeta: (
+    patch: Partial<
+      Pick<
+        Tournament,
+        | 'name'
+        | 'courseName'
+        | 'date'
+        | 'format'
+        | 'handicapAllowance'
+        | 'playDay'
+        | 'startTime'
+        | 'teeTimeInterval'
+      >
+    >,
+  ) => void;
   onStart: () => void;
 }
 
@@ -92,7 +106,7 @@ export default function TournamentSetup({
         players,
         4,
         'Group',
-        tournament.startTime,
+        tournament.startTime || '08:00',
         tournament.teeTimeInterval ?? 12,
       ),
     );

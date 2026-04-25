@@ -15,6 +15,9 @@ interface Props {
   onRemovePlayer: (id: string) => void;
   onUpdatePlayer: (id: string, patch: Partial<TourPlayer>) => void;
   onUpdateGroup: (id: string, patch: Partial<TourGroup>) => void;
+  onUpdateMeta: (
+    patch: Partial<Pick<Tournament, 'startTime' | 'teeTimeInterval'>>,
+  ) => void;
   onLaunchVegas: (code: string) => void;
   onEditSetup: () => void;
   onExit: () => void;
@@ -29,6 +32,7 @@ export default function EventHome({
   onRemovePlayer,
   onUpdatePlayer,
   onUpdateGroup,
+  onUpdateMeta,
   onLaunchVegas,
   onEditSetup,
   onExit,
@@ -57,12 +61,14 @@ export default function EventHome({
       tournament.groups.length === 0 ||
       confirm('Replace existing groups with a fresh random draw?');
     if (!ok) return;
+    // Fall back to 08:00 / 12 min so events created before tee-time fields existed
+    // still get tee times stamped on Randomize.
     onSetGroups(
       randomizeGroups(
         registered,
         4,
         'Group',
-        tournament.startTime,
+        tournament.startTime || '08:00',
         tournament.teeTimeInterval ?? 12,
       ),
     );
@@ -169,7 +175,7 @@ export default function EventHome({
                 <div>
                   <div>{p.name}</div>
                   <div className="text-xs text-neutral-500">
-                    Index {p.handicapIndex} · CH {p.courseHandicap}
+                    Index {formatIndex(p.handicapIndex) || p.handicapIndex} · CH {p.courseHandicap < 0 ? `+${Math.abs(p.courseHandicap)}` : p.courseHandicap}
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -254,15 +260,47 @@ export default function EventHome({
         )}
       </div>
 
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xs uppercase tracking-widest text-neutral-500">Groups</h2>
+      <div className="mb-2">
+        <h2 className="text-xs uppercase tracking-widest text-neutral-500 mb-2">Groups</h2>
         {registered.length > 0 && (
-          <button
-            onClick={handleRandomize}
-            className="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded font-semibold"
-          >
-            🎲 Randomize foursomes
-          </button>
+          <div className="bg-neutral-900 rounded-lg p-3 mb-2">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex-1">
+                <label className="text-[10px] uppercase tracking-wider text-neutral-500 block">
+                  First tee
+                </label>
+                <input
+                  type="time"
+                  value={tournament.startTime || '08:00'}
+                  onChange={(e) => onUpdateMeta({ startTime: e.target.value })}
+                  className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+              <div className="w-24">
+                <label className="text-[10px] uppercase tracking-wider text-neutral-500 block">
+                  Interval
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={tournament.teeTimeInterval ?? 12}
+                  onChange={(e) =>
+                    onUpdateMeta({
+                      teeTimeInterval: Math.max(1, Number(e.target.value) || 12),
+                    })
+                  }
+                  className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+            </div>
+            <button
+              onClick={handleRandomize}
+              className="w-full text-sm bg-emerald-700 text-white px-3 py-2 rounded font-semibold active:bg-emerald-800"
+            >
+              🎲 Randomize foursomes
+            </button>
+          </div>
         )}
       </div>
       {tournament.groups.length === 0 && (
