@@ -3,9 +3,12 @@
  *
  * Rules:
  * - Each team's two net scores form a two-digit number (lower digit first → e.g. 4,5 = 45)
- * - If a team has a NATURAL birdie (gross score <= par-1), the OPPONENT's number is flipped
- *   (higher digit first → e.g. 5,4 = 54) ONLY if the opponent's low net score is worse
- *   than birdie (> par-1). If their low net is birdie or better, no flip.
+ * - A team triggers an OPPONENT flip (higher digit first → e.g. 5,4 = 54) when it has:
+ *     • A natural (gross) birdie or better (gross score <= par-1), OR
+ *     • A net eagle or better (net score <= par-2) — a net eagle counts as a flip, same
+ *       as a gross birdie.
+ * - The opponent is only flipped if THEIR low net score is worse than birdie (> par-1).
+ *   If their low net is birdie or better, no flip.
  * - Points = opponent's number - your number (positive = you win)
  */
 export function calculateVegasPoints(
@@ -15,16 +18,24 @@ export function calculateVegasPoints(
   team1Gross: [number, number],
   team2Gross: [number, number]
 ): { team1Vegas: number; team2Vegas: number; points: number } {
-  // Only natural (gross) birdies flip the opponent's score
-  const team1HasBirdie = team1Gross[0] <= par - 1 || team1Gross[1] <= par - 1;
-  const team2HasBirdie = team2Gross[0] <= par - 1 || team2Gross[1] <= par - 1;
+  // A gross birdie (or better) OR a net eagle (or better) triggers the flip
+  const team1FlipTrigger =
+    team1Gross[0] <= par - 1 ||
+    team1Gross[1] <= par - 1 ||
+    team1Scores[0] <= par - 2 ||
+    team1Scores[1] <= par - 2;
+  const team2FlipTrigger =
+    team2Gross[0] <= par - 1 ||
+    team2Gross[1] <= par - 1 ||
+    team2Scores[0] <= par - 2 ||
+    team2Scores[1] <= par - 2;
 
   const sorted1 = [...team1Scores].sort((a, b) => a - b) as [number, number];
   const sorted2 = [...team2Scores].sort((a, b) => a - b) as [number, number];
 
-  // Flip only if opponent birdied AND your low net is worse than birdie
-  const flipTeam1 = team2HasBirdie && sorted1[0] > par - 1;
-  const flipTeam2 = team1HasBirdie && sorted2[0] > par - 1;
+  // Flip only if opponent triggered AND your low net is worse than birdie
+  const flipTeam1 = team2FlipTrigger && sorted1[0] > par - 1;
+  const flipTeam2 = team1FlipTrigger && sorted2[0] > par - 1;
 
   // Normal: lower digit first. Flipped: higher digit first.
   const team1Vegas = flipTeam1
