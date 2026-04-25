@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { fetchGhinIndex, applyAllowance, courseHandicap } from '../ghin';
 import { generateId } from '../useTournament';
 import { randomizeGroups } from '../randomize';
+import { parseIndex, formatIndex, formatHandicap } from '../../components/PlayerIndexInput';
 import { PLAY_DAYS, PLAY_DAY_LABELS, nextDateForDay } from '../dateUtils';
 import type { PlayDay, Tournament, TourGroup, TourPlayer } from '../types';
 
@@ -242,11 +243,15 @@ export default function TournamentSetup({
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Handicap index">
                     <input
-                      type="number"
-                      step="0.1"
-                      value={p.handicapIndex}
+                      type="text"
+                      value={formatIndex(p.handicapIndex)}
+                      placeholder="e.g. 12.4 or +2.3"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
                       onChange={(e) => {
-                        const idx = Number(e.target.value);
+                        const idx = parseIndex(e.target.value);
                         onUpdatePlayer(p.id, {
                           handicapIndex: idx,
                           courseHandicap: recomputeCourseHandicap({ ...p, handicapIndex: idx }),
@@ -257,9 +262,13 @@ export default function TournamentSetup({
                   </Field>
                   <Field label="Course hdcp">
                     <input
-                      type="number"
-                      value={p.courseHandicap}
-                      onChange={(e) => onUpdatePlayer(p.id, { courseHandicap: Number(e.target.value) })}
+                      type="text"
+                      value={formatHandicap(p.courseHandicap)}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      onChange={(e) => onUpdatePlayer(p.id, { courseHandicap: parseIndex(e.target.value) })}
                       className="input"
                     />
                   </Field>

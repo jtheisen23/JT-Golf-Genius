@@ -4,6 +4,7 @@ import { randomizeGroups } from '../randomize';
 import { PLAY_DAY_LABELS, formatPlayDate } from '../dateUtils';
 import { applyAllowance, courseHandicap } from '../ghin';
 import { createVegasGameFromTournament } from '../../hooks/vegasSync';
+import { parseIndex, formatIndex } from '../../components/PlayerIndexInput';
 
 interface Props {
   tournament: Tournament;
@@ -168,7 +169,7 @@ export default function EventHome({
                     onClick={() => {
                       setEditingPlayer(p);
                       setEditName(p.name);
-                      setEditIndex(String(p.handicapIndex));
+                      setEditIndex(formatIndex(p.handicapIndex) || String(p.handicapIndex));
                     }}
                     className="text-xs text-emerald-400"
                   >
@@ -203,9 +204,14 @@ export default function EventHome({
               <label className="block">
                 <div className="text-xs text-neutral-400 uppercase mb-1">Handicap Index</div>
                 <input
+                  type="text"
                   value={editIndex}
                   onChange={(e) => setEditIndex(e.target.value)}
-                  inputMode="decimal"
+                  placeholder="e.g. 12.4 or +2.3"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   className="w-full bg-neutral-800 border border-neutral-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-emerald-600"
                 />
               </label>
@@ -218,7 +224,7 @@ export default function EventHome({
                 </button>
                 <button
                   onClick={() => {
-                    const idx = Number(editIndex) || 0;
+                    const idx = parseIndex(editIndex);
                     const ch = applyAllowance(
                       courseHandicap(idx, 132, 70, 68),
                       tournament.handicapAllowance,
