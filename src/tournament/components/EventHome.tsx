@@ -383,12 +383,12 @@ export default function EventHome({
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setEditingGroupId(g.id)}
-                    className="text-xs text-neutral-300"
+                    className="text-xs bg-neutral-700 text-white px-2.5 py-1 rounded font-semibold active:bg-neutral-600"
                   >
-                    Edit
+                    ✏️ Edit
                   </button>
                   <button
                     onClick={() => onOpenGroup(g.id)}
