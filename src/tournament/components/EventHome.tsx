@@ -42,9 +42,9 @@ export default function EventHome({
   const [editIndex, setEditIndex] = useState('');
   const [movingPlayer, setMovingPlayer] = useState<{ playerId: string; fromGroupId: string } | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  // Snapshot of groups taken right before a Randomize, used to power Undo.
-  // Null when there's nothing to undo (initial mount or after Undo is consumed).
-  const [previousGroups, setPreviousGroups] = useState<TourGroup[] | null>(null);
+  // Tracks whether a Randomize has been performed since mount (or last Undo)
+  // so we can show the Undo button. Undo clears all groups back to none.
+  const [canUndoRandomize, setCanUndoRandomize] = useState(false);
   // Recalculate CH for all players using current formula on mount
   useEffect(() => {
     for (const p of Object.values(tournament.players)) {
@@ -74,8 +74,8 @@ export default function EventHome({
       tournament.groups.length === 0 ||
       confirm('Replace existing groups with a fresh random draw?');
     if (!ok) return;
-    // Snapshot existing groups so the user can undo if they don't like the draw.
-    setPreviousGroups(tournament.groups);
+    // Mark that a randomize happened so Undo can offer to clear.
+    setCanUndoRandomize(true);
     // Fall back to 08:00 / 12 min so events created before tee-time fields existed
     // still get tee times stamped on Randomize.
     onSetGroups(
@@ -90,9 +90,9 @@ export default function EventHome({
   };
 
   const handleUndoRandomize = () => {
-    if (!previousGroups) return;
-    onSetGroups(previousGroups);
-    setPreviousGroups(null);
+    // Undo clears all groups — back to "no groups created" state.
+    onSetGroups([]);
+    setCanUndoRandomize(false);
   };
   const base = `${window.location.origin}${window.location.pathname}`;
   const leaderboardUrl = `${base}#/t/${tournament.id}/leaderboard`;
@@ -338,11 +338,11 @@ export default function EventHome({
               >
                 🎲 Randomize foursomes
               </button>
-              {previousGroups && (
+              {canUndoRandomize && (
                 <button
                   onClick={handleUndoRandomize}
                   className="text-sm bg-neutral-700 text-white px-3 py-2.5 rounded font-semibold active:bg-neutral-600"
-                  title="Restore the previous groups"
+                  title="Clear groups — back to no groups created"
                 >
                   ↶ Undo
                 </button>
