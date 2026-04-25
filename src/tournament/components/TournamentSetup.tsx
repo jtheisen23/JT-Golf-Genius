@@ -87,7 +87,15 @@ export default function TournamentSetup({
         'Replace existing groups with a fresh random draw? Posted scores will stay on their current groups but unassigned groups will be removed.',
       );
     if (!ok) return;
-    onSetGroups(randomizeGroups(players, 4));
+    onSetGroups(
+      randomizeGroups(
+        players,
+        4,
+        'Group',
+        tournament.startTime,
+        tournament.teeTimeInterval ?? 12,
+      ),
+    );
   };
 
   const canStart =
@@ -198,6 +206,32 @@ export default function TournamentSetup({
               max={100}
             />
           </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="First tee time">
+              <input
+                type="time"
+                value={tournament.startTime || '08:00'}
+                onChange={(e) => onUpdateMeta({ startTime: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Interval (min)">
+              <input
+                type="number"
+                value={tournament.teeTimeInterval ?? 12}
+                onChange={(e) =>
+                  onUpdateMeta({ teeTimeInterval: Math.max(1, Number(e.target.value) || 12) })
+                }
+                className="input"
+                min={1}
+                max={60}
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-neutral-500 -mt-1">
+            When you Randomize groups, the first group gets this start time and each
+            subsequent group is spaced by the interval above.
+          </p>
         </section>
       )}
 

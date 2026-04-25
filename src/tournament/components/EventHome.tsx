@@ -57,7 +57,15 @@ export default function EventHome({
       tournament.groups.length === 0 ||
       confirm('Replace existing groups with a fresh random draw?');
     if (!ok) return;
-    onSetGroups(randomizeGroups(registered, 4));
+    onSetGroups(
+      randomizeGroups(
+        registered,
+        4,
+        'Group',
+        tournament.startTime,
+        tournament.teeTimeInterval ?? 12,
+      ),
+    );
   };
   const base = `${window.location.origin}${window.location.pathname}`;
   const leaderboardUrl = `${base}#/t/${tournament.id}/leaderboard`;
