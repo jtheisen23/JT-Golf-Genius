@@ -41,6 +41,7 @@ export default function EventHome({
   const [editName, setEditName] = useState('');
   const [editIndex, setEditIndex] = useState('');
   const [movingPlayer, setMovingPlayer] = useState<{ playerId: string; fromGroupId: string } | null>(null);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   // Recalculate CH for all players using current formula on mount
   useEffect(() => {
     for (const p of Object.values(tournament.players)) {
@@ -93,6 +94,19 @@ export default function EventHome({
     } catch {
       /* clipboard unavailable */
     }
+  };
+
+  /** Format "HH:MM" 24h as "h:MM AM/PM"; returns the original string if it doesn't parse. */
+  const formatTeeTime = (t?: string): string => {
+    if (!t) return '';
+    const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+    if (!m) return t;
+    let h = parseInt(m[1], 10);
+    const min = m[2];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${h}:${min} ${ampm}`;
   };
 
   const totalPlayers = Object.keys(tournament.players).length;
@@ -360,18 +374,30 @@ export default function EventHome({
               key={g.id}
               className="bg-neutral-900 rounded-lg p-3 active:bg-neutral-800"
             >
-              <div className="flex items-center justify-between mb-1">
-                <div className="font-semibold">{g.name}</div>
-                <button
-                  onClick={() => onOpenGroup(g.id)}
-                  className="text-xs text-emerald-400"
-                >
-                  Scorecard →
-                </button>
+              <div className="flex items-center justify-between mb-1 gap-2">
+                <div className="font-semibold flex items-baseline gap-2 flex-wrap">
+                  <span>{g.name}</span>
+                  {g.teeTime && (
+                    <span className="text-xs font-medium text-emerald-400">
+                      {formatTeeTime(g.teeTime)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => setEditingGroupId(g.id)}
+                    className="text-xs text-neutral-300"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => onOpenGroup(g.id)}
+                    className="text-xs text-emerald-400"
+                  >
+                    Scorecard →
+                  </button>
+                </div>
               </div>
-              {g.teeTime && (
-                <div className="text-xs text-neutral-500 mb-1">Tee {g.teeTime}</div>
-              )}
               <div className="flex flex-wrap gap-x-2 gap-y-0.5">
                 {g.playerIds.map((pid) => {
                   const player = tournament.players[pid];
@@ -406,6 +432,129 @@ export default function EventHome({
           );
         })}
       </div>
+
+      {editingGroupId && (() => {
+        const group = tournament.groups.find((g) => g.id === editingGroupId);
+        if (!group) return null;
+        const inThisGroup = new Set(group.playerIds);
+        // A player is "available" to add if they're either already in this group
+        // (so we can show them checked) or not assigned to any group.
+        const assignedElsewhere = new Set(
+          tournament.groups
+            .filter((g) => g.id !== editingGroupId)
+            .flatMap((g) => g.playerIds),
+        );
+        const allRegistered = Object.values(tournament.players);
+
+        const togglePlayer = (pid: string) => {
+          if (inThisGroup.has(pid)) {
+            // Uncheck = remove from this group
+            onUpdateGroup(group.id, {
+              playerIds: group.playerIds.filter((id) => id !== pid),
+            });
+          } else {
+            // Check = add to this group, and pull them out of any other group
+            const otherGroup = tournament.groups.find(
+              (g) => g.id !== group.id && g.playerIds.includes(pid),
+            );
+            if (otherGroup) {
+              onUpdateGroup(otherGroup.id, {
+                playerIds: otherGroup.playerIds.filter((id) => id !== pid),
+              });
+            }
+            onUpdateGroup(group.id, { playerIds: [...group.playerIds, pid] });
+          }
+        };
+
+        return (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+            <div className="bg-neutral-900 rounded-xl p-4 w-full max-w-md max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-lg">Edit {group.name}</h3>
+                <button
+                  onClick={() => setEditingGroupId(null)}
+                  className="text-neutral-400 text-xl leading-none px-2"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
+                    Group name
+                  </div>
+                  <input
+                    value={group.name}
+                    onChange={(e) => onUpdateGroup(group.id, { name: e.target.value })}
+                    className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+                  />
+                </label>
+                <label className="block">
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
+                    Tee time
+                  </div>
+                  <input
+                    type="time"
+                    value={group.teeTime || ''}
+                    onChange={(e) =>
+                      onUpdateGroup(group.id, { teeTime: e.target.value || undefined })
+                    }
+                    className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+                  />
+                </label>
+              </div>
+
+              <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">
+                Players ({group.playerIds.length} in group)
+              </div>
+              <div className="flex-1 overflow-y-auto space-y-1 mb-3">
+                {allRegistered.length === 0 && (
+                  <p className="text-xs text-neutral-500">No registered players yet.</p>
+                )}
+                {allRegistered.map((p) => {
+                  const checked = inThisGroup.has(p.id);
+                  const elsewhere = !checked && assignedElsewhere.has(p.id);
+                  const otherGroupName = elsewhere
+                    ? tournament.groups.find((g) => g.playerIds.includes(p.id))?.name
+                    : null;
+                  return (
+                    <label
+                      key={p.id}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm ${
+                        checked ? 'bg-emerald-900/30' : 'bg-neutral-800/50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => togglePlayer(p.id)}
+                        className="accent-emerald-600"
+                      />
+                      <span className={checked ? 'text-white' : 'text-neutral-300'}>
+                        {p.name || '(no name)'}
+                      </span>
+                      {elsewhere && otherGroupName && (
+                        <span className="ml-auto text-[10px] text-amber-400">
+                          in {otherGroupName} — adding will move
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setEditingGroupId(null)}
+                className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold active:bg-emerald-700"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {movingPlayer && (() => {
         const player = tournament.players[movingPlayer.playerId];
