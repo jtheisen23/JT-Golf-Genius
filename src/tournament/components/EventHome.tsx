@@ -42,6 +42,9 @@ export default function EventHome({
   const [editIndex, setEditIndex] = useState('');
   const [movingPlayer, setMovingPlayer] = useState<{ playerId: string; fromGroupId: string } | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  // Snapshot of groups taken right before a Randomize, used to power Undo.
+  // Null when there's nothing to undo (initial mount or after Undo is consumed).
+  const [previousGroups, setPreviousGroups] = useState<TourGroup[] | null>(null);
   // Recalculate CH for all players using current formula on mount
   useEffect(() => {
     for (const p of Object.values(tournament.players)) {
@@ -71,6 +74,8 @@ export default function EventHome({
       tournament.groups.length === 0 ||
       confirm('Replace existing groups with a fresh random draw?');
     if (!ok) return;
+    // Snapshot existing groups so the user can undo if they don't like the draw.
+    setPreviousGroups(tournament.groups);
     // Fall back to 08:00 / 12 min so events created before tee-time fields existed
     // still get tee times stamped on Randomize.
     onSetGroups(
@@ -82,6 +87,12 @@ export default function EventHome({
         tournament.teeTimeInterval ?? 12,
       ),
     );
+  };
+
+  const handleUndoRandomize = () => {
+    if (!previousGroups) return;
+    onSetGroups(previousGroups);
+    setPreviousGroups(null);
   };
   const base = `${window.location.origin}${window.location.pathname}`;
   const leaderboardUrl = `${base}#/t/${tournament.id}/leaderboard`;
@@ -320,12 +331,23 @@ export default function EventHome({
                 />
               </div>
             </div>
-            <button
-              onClick={handleRandomize}
-              className="w-full text-sm bg-emerald-700 text-white px-3 py-2.5 rounded font-semibold active:bg-emerald-800"
-            >
-              🎲 Randomize foursomes
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleRandomize}
+                className="flex-1 text-sm bg-emerald-700 text-white px-3 py-2.5 rounded font-semibold active:bg-emerald-800"
+              >
+                🎲 Randomize foursomes
+              </button>
+              {previousGroups && (
+                <button
+                  onClick={handleUndoRandomize}
+                  className="text-sm bg-neutral-700 text-white px-3 py-2.5 rounded font-semibold active:bg-neutral-600"
+                  title="Restore the previous groups"
+                >
+                  ↶ Undo
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
