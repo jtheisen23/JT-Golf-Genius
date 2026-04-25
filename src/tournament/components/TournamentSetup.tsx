@@ -405,7 +405,7 @@ export default function TournamentSetup({
                       />
                       <span>{p.name || '(no name)'}</span>
                       <span className="text-xs text-neutral-500 ml-auto">
-                        CH {p.courseHandicap}
+                        CH {formatHandicap(p.courseHandicap)}
                       </span>
                     </label>
                   );

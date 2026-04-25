@@ -54,6 +54,15 @@ export default function EventHome({
     }
   }, [tournament.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Backfill tee-time fields on legacy events so the inputs reflect a real
+  // saved value (and the user sees they're editable, not a hard-coded label).
+  useEffect(() => {
+    const patch: { startTime?: string; teeTimeInterval?: number } = {};
+    if (tournament.startTime == null) patch.startTime = '08:00';
+    if (tournament.teeTimeInterval == null) patch.teeTimeInterval = 12;
+    if (Object.keys(patch).length > 0) onUpdateMeta(patch);
+  }, [tournament.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const registered = Object.values(tournament.players);
   const handleRandomize = () => {
     if (registered.length === 0) return;
@@ -263,22 +272,25 @@ export default function EventHome({
       <div className="mb-2">
         <h2 className="text-xs uppercase tracking-widest text-neutral-500 mb-2">Groups</h2>
         {registered.length > 0 && (
-          <div className="bg-neutral-900 rounded-lg p-3 mb-2">
-            <div className="flex items-center gap-2 mb-2">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 mb-2">
+            <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-2">
+              Tee-time settings — tap to change
+            </div>
+            <div className="flex items-end gap-2 mb-3">
               <div className="flex-1">
-                <label className="text-[10px] uppercase tracking-wider text-neutral-500 block">
-                  First tee
+                <label className="text-[11px] text-neutral-400 block mb-0.5">
+                  First tee time
                 </label>
                 <input
                   type="time"
                   value={tournament.startTime || '08:00'}
                   onChange={(e) => onUpdateMeta({ startTime: e.target.value })}
-                  className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+                  className="w-full bg-neutral-950 border border-emerald-700/40 text-white px-2 py-2 rounded text-sm font-semibold focus:outline-none focus:border-emerald-500"
                 />
               </div>
-              <div className="w-24">
-                <label className="text-[10px] uppercase tracking-wider text-neutral-500 block">
-                  Interval
+              <div className="w-28">
+                <label className="text-[11px] text-neutral-400 block mb-0.5">
+                  Interval (min)
                 </label>
                 <input
                   type="number"
@@ -290,13 +302,13 @@ export default function EventHome({
                       teeTimeInterval: Math.max(1, Number(e.target.value) || 12),
                     })
                   }
-                  className="w-full bg-neutral-800 border border-neutral-700 text-white px-2 py-1.5 rounded text-sm focus:outline-none focus:border-emerald-600"
+                  className="w-full bg-neutral-950 border border-emerald-700/40 text-white px-2 py-2 rounded text-sm font-semibold focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
             <button
               onClick={handleRandomize}
-              className="w-full text-sm bg-emerald-700 text-white px-3 py-2 rounded font-semibold active:bg-emerald-800"
+              className="w-full text-sm bg-emerald-700 text-white px-3 py-2.5 rounded font-semibold active:bg-emerald-800"
             >
               🎲 Randomize foursomes
             </button>
