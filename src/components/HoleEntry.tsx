@@ -445,7 +445,7 @@ export default function HoleEntry({
       </div>
 
       {/* Match results for this hole */}
-      {allScoresEntered && (
+      {activeMatches.length > 0 && (
         <div className="space-y-3 mb-6">
           <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">This Hole</h2>
           {activeMatches.map((match) => {
