@@ -63,17 +63,20 @@ export function useRound() {
   // Track whether the last state update came from Firebase to avoid echo writes
   const isRemoteUpdate = useRef(false);
 
-  // Subscribe to Firebase when we have a game code
+  // Subscribe to Firebase when we have a game code.
+  //
+  // Each device navigates independently — we deliberately do NOT apply
+  // remote `screen` or `currentHole` here. Otherwise one user clicking
+  // "Scoreboard" yanks every joined device to that view. Joiners get an
+  // initial `screen` value from joinGame; from there it's per-device.
   useEffect(() => {
     if (!gameCode) return;
     const unsub = subscribeVegasGame(gameCode, (remote: VegasGameState) => {
       isRemoteUpdate.current = true;
-      setScreen(remote.screen as Screen);
       setPlayers(remote.players);
       setHoles(remote.holes);
       setMatches(remote.matches);
       setScores(remote.scores || {});
-      // currentHole is intentionally NOT synced — each device navigates independently
       setCourseName(remote.courseName);
       setPointValue(remote.pointValue);
       setMultipliers(remote.multipliers || {});
