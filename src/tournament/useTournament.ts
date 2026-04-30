@@ -85,36 +85,52 @@ export function useTournament(eventId: string | null) {
     [eventId],
   );
 
+  // Score writes go through a path-specific Firebase write so that another
+  // client's full-document save (e.g. EventHome's auto-recompute on first
+  // load) can't echo back a stale `scores` map and blank entered scores.
   const setScore = useCallback(
     (groupId: string, playerId: string, hole: number, value: number | null) => {
-      mutate((t) => {
-        const groupScores = { ...(t.scores[groupId] || {}) };
+      if (!eventId) return;
+      sync.saveScore(eventId, groupId, playerId, hole, value);
+      setTournament((prev) => {
+        if (!prev) return prev;
+        const groupScores = { ...(prev.scores[groupId] || {}) };
         const playerScores = { ...(groupScores[playerId] || {}) };
         if (value == null) delete playerScores[hole];
         else playerScores[hole] = value;
         groupScores[playerId] = playerScores;
-        return { ...t, scores: { ...t.scores, [groupId]: groupScores } };
+        return { ...prev, scores: { ...prev.scores, [groupId]: groupScores } };
       });
     },
-    [mutate],
+    [eventId],
   );
 
   const addPlayer = useCallback(
     (player: TourPlayer) => {
-      mutate((t) => ({ ...t, players: { ...t.players, [player.id]: player } }));
+      if (!eventId) return;
+      sync.savePlayer(eventId, player);
+      setTournament((prev) =>
+        prev ? { ...prev, players: { ...prev.players, [player.id]: player } } : prev,
+      );
     },
-    [mutate],
+    [eventId],
   );
 
+  // Path-specific to avoid clobbering scores when EventHome's auto-recompute
+  // fires on load and would otherwise rewrite the whole tournament.
   const updatePlayer = useCallback(
     (id: string, patch: Partial<TourPlayer>) => {
-      mutate((t) => {
-        const existing = t.players[id];
-        if (!existing) return t;
-        return { ...t, players: { ...t.players, [id]: { ...existing, ...patch } } };
-      });
+      if (!eventId) return;
+      const current = sync.load(eventId) ?? tournamentRef.current;
+      const existing = current?.players[id];
+      if (!existing) return;
+      const merged = { ...existing, ...patch };
+      sync.savePlayer(eventId, merged);
+      setTournament((prev) =>
+        prev ? { ...prev, players: { ...prev.players, [id]: merged } } : prev,
+      );
     },
-    [mutate],
+    [eventId],
   );
 
   const removePlayer = useCallback(
@@ -185,6 +201,8 @@ export function useTournament(eventId: string | null) {
     [mutate],
   );
 
+  // Path-specific so the auto-tee-time backfill (EventHome) and other meta
+  // edits don't echo a stale `scores` map back to other clients.
   const updateMeta = useCallback(
     (
       patch: Partial<
@@ -201,9 +219,11 @@ export function useTournament(eventId: string | null) {
         >
       >,
     ) => {
-      mutate((t) => ({ ...t, ...patch }));
+      if (!eventId) return;
+      sync.saveMeta(eventId, patch);
+      setTournament((prev) => (prev ? { ...prev, ...patch } : prev));
     },
-    [mutate],
+    [eventId],
   );
 
   return {
