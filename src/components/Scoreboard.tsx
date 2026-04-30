@@ -399,7 +399,7 @@ export default function Scoreboard({
       <button
         onClick={() => {
           const ok = window.confirm(
-            'Finish and save this round? The round will be moved to History and the scoring screen will reset for a new game.'
+            'Are you sure you want to finish and save this round? You will return to the tournaments list and can start a new event.'
           );
           if (ok) onFinish();
         }}

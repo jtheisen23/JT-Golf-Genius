@@ -150,8 +150,12 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
           getMultiplierValue={round.getMultiplierValue}
           onBack={() => round.setScreen('holes')}
           onFinish={() => {
+            // Save the round to localStorage history, then exit Vegas back to
+            // the tournaments list so the user can start (or open) another
+            // event. Going to 'history' here would strand them on a dead-end
+            // screen now that standalone Vegas has been removed.
             round.finishRound();
-            round.setScreen('history');
+            onExit();
           }}
         />
       </>
