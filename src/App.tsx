@@ -20,6 +20,37 @@ function useHashRoute(): [string, (next: string) => void] {
   return [hash, navigate];
 }
 
+function HomeScreen({ onPickTournament }: { onPickTournament: () => void }) {
+  return (
+    <div className="min-h-screen bg-black text-neutral-100 flex flex-col items-center justify-center p-6">
+      <div className="text-center mb-8">
+        <img
+          src={`${import.meta.env.BASE_URL}hero.jpg`}
+          alt="Who's ready to gamble"
+          className="w-48 h-48 rounded-full object-cover mx-auto mb-4 border-2 border-neutral-700"
+        />
+        <h1 className="text-2xl font-bold">Who's Ready to Gamble</h1>
+      </div>
+
+      <div className="w-full max-w-sm">
+        <button
+          onClick={onPickTournament}
+          className="w-full p-5 bg-emerald-700 rounded-2xl text-left active:bg-emerald-800"
+        >
+          <div className="font-bold text-lg">Tournament</div>
+          <div className="text-sm text-emerald-100/80">
+            Multiple groups, live leaderboard, Vegas games, handicaps
+          </div>
+        </button>
+      </div>
+
+      <p className="text-[10px] text-neutral-600 mt-10 text-center max-w-xs">
+        Live scoring syncs across devices in real time.
+      </p>
+    </div>
+  );
+}
+
 function GameCodeBanner({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const shareUrl = `${window.location.origin}${window.location.pathname}#/vegas/join/${code}`;
@@ -77,7 +108,17 @@ function JoinGameScreen({ onJoin, onBack }: { onJoin: (code: string) => void; on
   );
 }
 
-function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoinCode?: string }) {
+type VegasScreen = 'history' | 'scoreboard' | 'scorecard' | 'holes' | 'setup';
+
+function VegasApp({
+  onExit,
+  initialJoinCode,
+  initialScreen,
+}: {
+  onExit: () => void;
+  initialJoinCode?: string;
+  initialScreen?: VegasScreen;
+}) {
   const round = useRound();
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
@@ -86,7 +127,7 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
   // gameCode (which may have been restored from localStorage on first render);
   // otherwise a stale cached code makes /vegas/join/<NEW> silently keep the
   // old game instead of switching to <NEW>.
-  const { gameCode: currentGameCode, joinGame } = round;
+  const { gameCode: currentGameCode, joinGame, setScreen: roundSetScreen } = round;
   useEffect(() => {
     if (!initialJoinCode) return;
     if (initialJoinCode === currentGameCode) return;
@@ -94,6 +135,13 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
       if (!ok) setJoinError(`Game "${initialJoinCode}" not found`);
     });
   }, [initialJoinCode, currentGameCode, joinGame]);
+
+  // Apply initialScreen when navigating in via a screen-specific URL like
+  // `#/vegas/history`. We only apply when the prop is set so users navigating
+  // to bare `#/vegas` keep whatever screen state they were last on.
+  useEffect(() => {
+    if (initialScreen) roundSetScreen(initialScreen);
+  }, [initialScreen, roundSetScreen]);
 
   if (joining) {
     return (
@@ -114,8 +162,16 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
   if (round.screen === 'history') {
     return (
       <RoundHistory
-        onBack={() => round.setScreen('setup')}
-        onEditRound={(saved) => round.loadSavedRound(saved)}
+        onBack={onExit}
+        onEditRound={(saved) => {
+          round.loadSavedRound(saved);
+          // Drop the `/history` segment so a refresh on the scoreboard doesn't
+          // bounce the user back to the history list via the initialScreen
+          // useEffect above.
+          if (window.location.hash === '#/vegas/history') {
+            window.location.hash = '#/vegas';
+          }
+        }}
       />
     );
   }
@@ -296,6 +352,7 @@ export default function App() {
     // Extract join code from #/vegas/join/{CODE}
     const joinMatch = hash.match(/^#\/vegas\/join\/([A-Za-z0-9]{6})$/);
     const joinCode = joinMatch ? joinMatch[1].toUpperCase() : undefined;
+    const wantsHistory = hash === '#/vegas/history';
 
     return (
       <>
@@ -304,7 +361,11 @@ export default function App() {
           onSwitch={() => navigate(lastTournamentRoute)}
           onLeaderboard={lastTournamentId ? () => navigate(`#/t/${lastTournamentId}/leaderboard`) : undefined}
         />
-        <VegasApp onExit={() => navigate('#/t')} initialJoinCode={joinCode} />
+        <VegasApp
+          onExit={() => navigate('#/t')}
+          initialJoinCode={joinCode}
+          initialScreen={wantsHistory ? 'history' : undefined}
+        />
       </>
     );
   }
@@ -316,17 +377,10 @@ export default function App() {
       <TournamentApp
         route={hash}
         onNavigate={navigate}
-        onExit={() => navigate('#/t')}
+        onExit={() => navigate('#/')}
       />
     );
   }
 
-  // Tournament is the only top-level mode now. Send the bare `#/` (and any
-  // other unknown route) to the tournaments list.
-  useEffect(() => {
-    if (!hash.startsWith('#/t') && !hash.startsWith('#/vegas')) {
-      navigate('#/t');
-    }
-  }, [hash, navigate]);
-  return null;
+  return <HomeScreen onPickTournament={() => navigate('#/t')} />;
 }
