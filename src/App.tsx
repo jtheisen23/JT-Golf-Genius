@@ -124,14 +124,18 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
 
-  // Auto-join if we navigated with a join code
+  // Auto-join if we navigated with a join code. Compare against the current
+  // gameCode (which may have been restored from localStorage on first render);
+  // otherwise a stale cached code makes /vegas/join/<NEW> silently keep the
+  // old game instead of switching to <NEW>.
+  const { gameCode: currentGameCode, joinGame } = round;
   useEffect(() => {
-    if (initialJoinCode && !round.gameCode) {
-      round.joinGame(initialJoinCode).then((ok) => {
-        if (!ok) setJoinError(`Game "${initialJoinCode}" not found`);
-      });
-    }
-  }, [initialJoinCode]);
+    if (!initialJoinCode) return;
+    if (initialJoinCode === currentGameCode) return;
+    joinGame(initialJoinCode).then((ok) => {
+      if (!ok) setJoinError(`Game "${initialJoinCode}" not found`);
+    });
+  }, [initialJoinCode, currentGameCode, joinGame]);
 
   if (joining) {
     return (
