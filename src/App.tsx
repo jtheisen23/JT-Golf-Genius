@@ -108,17 +108,7 @@ function JoinGameScreen({ onJoin, onBack }: { onJoin: (code: string) => void; on
   );
 }
 
-type VegasScreen = 'history' | 'scoreboard' | 'scorecard' | 'holes' | 'setup';
-
-function VegasApp({
-  onExit,
-  initialJoinCode,
-  initialScreen,
-}: {
-  onExit: () => void;
-  initialJoinCode?: string;
-  initialScreen?: VegasScreen;
-}) {
+function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoinCode?: string }) {
   const round = useRound();
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
@@ -127,7 +117,7 @@ function VegasApp({
   // gameCode (which may have been restored from localStorage on first render);
   // otherwise a stale cached code makes /vegas/join/<NEW> silently keep the
   // old game instead of switching to <NEW>.
-  const { gameCode: currentGameCode, joinGame, setScreen: roundSetScreen } = round;
+  const { gameCode: currentGameCode, joinGame } = round;
   useEffect(() => {
     if (!initialJoinCode) return;
     if (initialJoinCode === currentGameCode) return;
@@ -135,13 +125,6 @@ function VegasApp({
       if (!ok) setJoinError(`Game "${initialJoinCode}" not found`);
     });
   }, [initialJoinCode, currentGameCode, joinGame]);
-
-  // Apply initialScreen when navigating in via a screen-specific URL like
-  // `#/vegas/history`. We only apply when the prop is set so users navigating
-  // to bare `#/vegas` keep whatever screen state they were last on.
-  useEffect(() => {
-    if (initialScreen) roundSetScreen(initialScreen);
-  }, [initialScreen, roundSetScreen]);
 
   if (joining) {
     return (
@@ -163,15 +146,7 @@ function VegasApp({
     return (
       <RoundHistory
         onBack={onExit}
-        onEditRound={(saved) => {
-          round.loadSavedRound(saved);
-          // Drop the `/history` segment so a refresh on the scoreboard doesn't
-          // bounce the user back to the history list via the initialScreen
-          // useEffect above.
-          if (window.location.hash === '#/vegas/history') {
-            window.location.hash = '#/vegas';
-          }
-        }}
+        onEditRound={(saved) => round.loadSavedRound(saved)}
       />
     );
   }
@@ -352,7 +327,6 @@ export default function App() {
     // Extract join code from #/vegas/join/{CODE}
     const joinMatch = hash.match(/^#\/vegas\/join\/([A-Za-z0-9]{6})$/);
     const joinCode = joinMatch ? joinMatch[1].toUpperCase() : undefined;
-    const wantsHistory = hash === '#/vegas/history';
 
     return (
       <>
@@ -361,11 +335,7 @@ export default function App() {
           onSwitch={() => navigate(lastTournamentRoute)}
           onLeaderboard={lastTournamentId ? () => navigate(`#/t/${lastTournamentId}/leaderboard`) : undefined}
         />
-        <VegasApp
-          onExit={() => navigate('#/t')}
-          initialJoinCode={joinCode}
-          initialScreen={wantsHistory ? 'history' : undefined}
-        />
+        <VegasApp onExit={() => navigate('#/t')} initialJoinCode={joinCode} />
       </>
     );
   }

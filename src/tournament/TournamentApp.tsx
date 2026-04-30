@@ -73,7 +73,6 @@ export default function TournamentApp({ route, onNavigate, onExit }: Props) {
         onOpenRegistration={(id) => onNavigate(`#/t/${id}/register`)}
         onOpenLeaderboard={(id) => onNavigate(`#/t/${id}/leaderboard`)}
         onOpenResults={() => onNavigate('#/t/results')}
-        onOpenVegasHistory={() => onNavigate('#/vegas/history')}
         onExit={onExit}
       />
     );
