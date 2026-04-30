@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Tournament, TourGroup, TourPlayer } from '../types';
 import { randomizeGroups } from '../randomize';
 import { PLAY_DAY_LABELS, formatPlayDate } from '../dateUtils';
@@ -42,27 +42,18 @@ export default function EventHome({
   const [editIndex, setEditIndex] = useState('');
   const [movingPlayer, setMovingPlayer] = useState<{ playerId: string; fromGroupId: string } | null>(null);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
-  // Recalculate CH for all players using current formula on mount
-  useEffect(() => {
-    for (const p of Object.values(tournament.players)) {
-      const correctCh = applyAllowance(
-        courseHandicap(p.handicapIndex, 132, 70, 68),
-        tournament.handicapAllowance,
-      );
-      if (p.courseHandicap !== correctCh) {
-        onUpdatePlayer(p.id, { courseHandicap: correctCh });
-      }
-    }
-  }, [tournament.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Backfill tee-time fields on legacy events so the inputs reflect a real
-  // saved value (and the user sees they're editable, not a hard-coded label).
-  useEffect(() => {
-    const patch: { startTime?: string; teeTimeInterval?: number } = {};
-    if (tournament.startTime == null) patch.startTime = '08:00';
-    if (tournament.teeTimeInterval == null) patch.teeTimeInterval = 12;
-    if (Object.keys(patch).length > 0) onUpdateMeta(patch);
-  }, [tournament.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // No auto-write effects on mount: anyone can open this screen (organizer,
+  // foursome members, spectators) and an effect that calls sync.save would
+  // race with active scorekeepers and clobber their writes. CH is recomputed
+  // on display via recomputeCh below; tee-time fields fall back to defaults
+  // at the input level (08:00 / 12 min).
+
+  const recomputeCh = (p: TourPlayer): number =>
+    applyAllowance(
+      courseHandicap(p.handicapIndex, 132, 70, 68),
+      tournament.handicapAllowance,
+    );
 
   const registered = Object.values(tournament.players);
   const handleRandomize = () => {
@@ -196,7 +187,9 @@ export default function EventHome({
           <p className="text-sm text-neutral-500">No registrations yet.</p>
         ) : (
           <div className="space-y-1">
-            {registered.map((p) => (
+            {registered.map((p) => {
+              const ch = recomputeCh(p);
+              return (
               <div
                 key={p.id}
                 className="bg-neutral-900 rounded-lg px-3 py-2 flex items-center justify-between text-sm"
@@ -204,7 +197,7 @@ export default function EventHome({
                 <div>
                   <div>{p.name}</div>
                   <div className="text-xs text-neutral-500">
-                    Index {formatIndex(p.handicapIndex) || p.handicapIndex} · CH {p.courseHandicap < 0 ? `+${Math.abs(p.courseHandicap)}` : p.courseHandicap}
+                    Index {formatIndex(p.handicapIndex) || p.handicapIndex} · CH {ch < 0 ? `+${Math.abs(ch)}` : ch}
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -228,7 +221,8 @@ export default function EventHome({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
