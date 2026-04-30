@@ -20,48 +20,6 @@ function useHashRoute(): [string, (next: string) => void] {
   return [hash, navigate];
 }
 
-function ModePicker({ onPick }: { onPick: (hash: string) => void }) {
-  return (
-    <div className="min-h-screen bg-black text-neutral-100 flex flex-col items-center justify-center p-6">
-      <div className="text-center mb-8">
-        <img
-          src={`${import.meta.env.BASE_URL}hero.jpg`}
-          alt="Who's ready to gamble"
-          className="w-48 h-48 rounded-full object-cover mx-auto mb-4 border-2 border-neutral-700"
-        />
-        <h1 className="text-2xl font-bold">Who's Ready to Gamble</h1>
-        <p className="text-sm text-neutral-400 mt-1">Pick a mode</p>
-      </div>
-
-      <div className="w-full max-w-sm space-y-3">
-        <button
-          onClick={() => onPick('#/t')}
-          className="w-full p-5 bg-emerald-700 rounded-2xl text-left active:bg-emerald-800"
-        >
-          <div className="font-bold text-lg">Tournament</div>
-          <div className="text-sm text-emerald-100/80">
-            Multiple groups, live leaderboard, handicaps
-          </div>
-        </button>
-
-        <button
-          onClick={() => onPick('#/vegas')}
-          className="w-full p-5 bg-red-700 rounded-2xl text-left active:bg-red-800"
-        >
-          <div className="font-bold text-lg">Vegas</div>
-          <div className="text-sm text-red-100/80">
-            Rotating partners game with presses
-          </div>
-        </button>
-      </div>
-
-      <p className="text-[10px] text-neutral-600 mt-10 text-center max-w-xs">
-        Live scoring syncs across devices in real time.
-      </p>
-    </div>
-  );
-}
-
 function GameCodeBanner({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
   const shareUrl = `${window.location.origin}${window.location.pathname}#/vegas/join/${code}`;
@@ -342,23 +300,29 @@ export default function App() {
           onSwitch={() => navigate(lastTournamentRoute)}
           onLeaderboard={lastTournamentId ? () => navigate(`#/t/${lastTournamentId}/leaderboard`) : undefined}
         />
-        <VegasApp onExit={() => navigate('#/')} initialJoinCode={joinCode} />
+        <VegasApp onExit={() => navigate('#/t')} initialJoinCode={joinCode} />
       </>
     );
   }
 
   if (hash.startsWith('#/t')) {
+    // No ModeToggle in tournament mode — Vegas is reachable only by launching
+    // it from a group inside a tournament, not as a standalone mode.
     return (
-      <>
-        <ModeToggle current="tournament" onSwitch={() => navigate('#/vegas')} />
-        <TournamentApp
-          route={hash}
-          onNavigate={navigate}
-          onExit={() => navigate('#/')}
-        />
-      </>
+      <TournamentApp
+        route={hash}
+        onNavigate={navigate}
+        onExit={() => navigate('#/t')}
+      />
     );
   }
 
-  return <ModePicker onPick={navigate} />;
+  // Tournament is the only top-level mode now. Send the bare `#/` (and any
+  // other unknown route) to the tournaments list.
+  useEffect(() => {
+    if (!hash.startsWith('#/t') && !hash.startsWith('#/vegas')) {
+      navigate('#/t');
+    }
+  }, [hash, navigate]);
+  return null;
 }
