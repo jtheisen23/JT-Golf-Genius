@@ -73,14 +73,16 @@ export function useRound() {
     if (!gameCode) return;
     const unsub = subscribeVegasGame(gameCode, (remote: VegasGameState) => {
       isRemoteUpdate.current = true;
-      setPlayers(remote.players);
-      setHoles(remote.holes);
-      setMatches(remote.matches);
-      setScores(remote.scores || {});
-      setCourseName(remote.courseName);
-      setPointValue(remote.pointValue);
-      setMultipliers(remote.multipliers || {});
-      setHandicapMode(remote.handicapMode);
+      // Firebase RTDB drops empty arrays/objects, so default each field to a
+      // safe value to avoid downstream `.forEach` / `.map` crashes on undefined.
+      setPlayers(remote.players ?? []);
+      setHoles(remote.holes ?? []);
+      setMatches(remote.matches ?? []);
+      setScores(remote.scores ?? {});
+      setCourseName(remote.courseName ?? '');
+      setPointValue(remote.pointValue ?? 0.5);
+      setMultipliers(remote.multipliers ?? {});
+      setHandicapMode(remote.handicapMode ?? 'off-the-low');
       if (remote.slope != null) setSlope(remote.slope);
       if (remote.courseRating != null) setCourseRating(remote.courseRating);
       // Clear the flag after a microtask so the subsequent useEffect skip works
@@ -234,16 +236,18 @@ export function useRound() {
   const joinGame = useCallback(async (code: string): Promise<boolean> => {
     const remote = await loadVegasGame(code);
     if (!remote) return false;
-    setScreen(remote.screen as Screen);
-    setPlayers(remote.players);
-    setHoles(remote.holes);
-    setMatches(remote.matches);
-    setScores(remote.scores || {});
-    setCurrentHole(remote.currentHole);
-    setCourseName(remote.courseName);
-    setPointValue(remote.pointValue);
-    setMultipliers(remote.multipliers || {});
-    setHandicapMode(remote.handicapMode);
+    // Firebase RTDB drops empty arrays/objects, so default each field to a
+    // safe value to avoid downstream `.forEach` / `.map` crashes on undefined.
+    setScreen((remote.screen as Screen) || 'scoreboard');
+    setPlayers(remote.players ?? []);
+    setHoles(remote.holes ?? []);
+    setMatches(remote.matches ?? []);
+    setScores(remote.scores ?? {});
+    setCurrentHole(remote.currentHole || 1);
+    setCourseName(remote.courseName ?? '');
+    setPointValue(remote.pointValue ?? 0.5);
+    setMultipliers(remote.multipliers ?? {});
+    setHandicapMode(remote.handicapMode ?? 'off-the-low');
     if (remote.slope != null) setSlope(remote.slope);
     if (remote.courseRating != null) setCourseRating(remote.courseRating);
     setGameCode(code.toUpperCase());
