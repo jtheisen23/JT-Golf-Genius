@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Tournament, TourPlayer } from '../types';
 import { applyAllowance, courseHandicap } from '../ghin';
 import { generateId } from '../useTournament';
+import { parseIndex, formatIndex } from '../../components/PlayerIndexInput';
 
 interface Props {
   tournament: Tournament;
@@ -31,7 +32,7 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
       setStatus({ type: 'err', message: 'Enter your name' });
       return;
     }
-    const idx = Number(index) || 0;
+    const idx = parseIndex(index);
     const ch = applyAllowance(courseHandicap(idx, 132, 70, 68), tournament.handicapAllowance);
     onAddPlayer({
       id: generateId(),
@@ -76,12 +77,17 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
         <label className="block">
           <div className="text-xs text-neutral-400 uppercase mb-1">Handicap index</div>
           <input
+            type="text"
             value={index}
             onChange={(e) => setIndex(e.target.value)}
-            placeholder="e.g. 12.4"
+            placeholder="e.g. 12.4 or +2.3"
             className="input"
-            inputMode="decimal"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
           />
+          <div className="text-[11px] text-neutral-500 mt-1">Use "+" prefix for plus handicaps (e.g. +2.3)</div>
         </label>
 
         {status.message && (
@@ -118,7 +124,7 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
                 <div>
                   <div>{p.name}</div>
                   <div className="text-xs text-neutral-500">
-                    Index {p.handicapIndex} · CH {p.courseHandicap}
+                    Index {formatIndex(p.handicapIndex) || p.handicapIndex} · CH {p.courseHandicap < 0 ? `+${Math.abs(p.courseHandicap)}` : p.courseHandicap}
                   </div>
                 </div>
                 <div className="flex gap-3">
@@ -126,7 +132,7 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
                     onClick={() => {
                       setEditingPlayer(p);
                       setEditName(p.name);
-                      setEditIndex(String(p.handicapIndex));
+                      setEditIndex(formatIndex(p.handicapIndex) || String(p.handicapIndex));
                     }}
                     className="text-xs text-emerald-400"
                   >
@@ -162,9 +168,14 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
             <label className="block">
               <div className="text-xs text-neutral-400 uppercase mb-1">Handicap Index</div>
               <input
+                type="text"
                 value={editIndex}
                 onChange={(e) => setEditIndex(e.target.value)}
-                inputMode="decimal"
+                placeholder="e.g. 12.4 or +2.3"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className="input"
               />
             </label>
@@ -177,7 +188,7 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
               </button>
               <button
                 onClick={() => {
-                  const idx = Number(editIndex) || 0;
+                  const idx = parseIndex(editIndex);
                   const ch = applyAllowance(
                     courseHandicap(idx, 132, 70, 68),
                     tournament.handicapAllowance,

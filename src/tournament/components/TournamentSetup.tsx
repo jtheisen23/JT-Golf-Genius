@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { fetchGhinIndex, applyAllowance, courseHandicap } from '../ghin';
 import { generateId } from '../useTournament';
 import { randomizeGroups } from '../randomize';
+import { parseIndex, formatIndex, formatHandicap } from '../../components/PlayerIndexInput';
 import { PLAY_DAYS, PLAY_DAY_LABELS, nextDateForDay } from '../dateUtils';
 import type { PlayDay, Tournament, TourGroup, TourPlayer } from '../types';
 
@@ -15,7 +16,21 @@ interface Props {
   onRemoveGroup: (id: string) => void;
   onSetGroups: (groups: TourGroup[]) => void;
   onUpdateHole: (n: number, patch: { par?: number; handicapRating?: number }) => void;
-  onUpdateMeta: (patch: Partial<Pick<Tournament, 'name' | 'courseName' | 'date' | 'format' | 'handicapAllowance' | 'playDay'>>) => void;
+  onUpdateMeta: (
+    patch: Partial<
+      Pick<
+        Tournament,
+        | 'name'
+        | 'courseName'
+        | 'date'
+        | 'format'
+        | 'handicapAllowance'
+        | 'playDay'
+        | 'startTime'
+        | 'teeTimeInterval'
+      >
+    >,
+  ) => void;
   onStart: () => void;
 }
 
@@ -86,7 +101,15 @@ export default function TournamentSetup({
         'Replace existing groups with a fresh random draw? Posted scores will stay on their current groups but unassigned groups will be removed.',
       );
     if (!ok) return;
-    onSetGroups(randomizeGroups(players, 4));
+    onSetGroups(
+      randomizeGroups(
+        players,
+        4,
+        'Group',
+        tournament.startTime || '08:00',
+        tournament.teeTimeInterval ?? 12,
+      ),
+    );
   };
 
   const canStart =
@@ -197,6 +220,32 @@ export default function TournamentSetup({
               max={100}
             />
           </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="First tee time">
+              <input
+                type="time"
+                value={tournament.startTime || '08:00'}
+                onChange={(e) => onUpdateMeta({ startTime: e.target.value })}
+                className="input"
+              />
+            </Field>
+            <Field label="Interval (min)">
+              <input
+                type="number"
+                value={tournament.teeTimeInterval ?? 12}
+                onChange={(e) =>
+                  onUpdateMeta({ teeTimeInterval: Math.max(1, Number(e.target.value) || 12) })
+                }
+                className="input"
+                min={1}
+                max={60}
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-neutral-500 -mt-1">
+            When you Randomize groups, the first group gets this start time and each
+            subsequent group is spaced by the interval above.
+          </p>
         </section>
       )}
 
@@ -242,11 +291,15 @@ export default function TournamentSetup({
                 <div className="grid grid-cols-2 gap-2">
                   <Field label="Handicap index">
                     <input
-                      type="number"
-                      step="0.1"
-                      value={p.handicapIndex}
+                      type="text"
+                      value={formatIndex(p.handicapIndex)}
+                      placeholder="e.g. 12.4 or +2.3"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
                       onChange={(e) => {
-                        const idx = Number(e.target.value);
+                        const idx = parseIndex(e.target.value);
                         onUpdatePlayer(p.id, {
                           handicapIndex: idx,
                           courseHandicap: recomputeCourseHandicap({ ...p, handicapIndex: idx }),
@@ -257,9 +310,13 @@ export default function TournamentSetup({
                   </Field>
                   <Field label="Course hdcp">
                     <input
-                      type="number"
-                      value={p.courseHandicap}
-                      onChange={(e) => onUpdatePlayer(p.id, { courseHandicap: Number(e.target.value) })}
+                      type="text"
+                      value={formatHandicap(p.courseHandicap)}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      onChange={(e) => onUpdatePlayer(p.id, { courseHandicap: parseIndex(e.target.value) })}
                       className="input"
                     />
                   </Field>
@@ -348,7 +405,7 @@ export default function TournamentSetup({
                       />
                       <span>{p.name || '(no name)'}</span>
                       <span className="text-xs text-neutral-500 ml-auto">
-                        CH {p.courseHandicap}
+                        CH {formatHandicap(p.courseHandicap)}
                       </span>
                     </label>
                   );

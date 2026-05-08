@@ -39,6 +39,8 @@ export interface Tournament {
   scores: Record<string, Record<string, Record<number, number>>>;
   format: TournamentFormat;
   handicapAllowance: number; // 100 = full, 85 = 85%, etc.
+  startTime?: string; // first tee time, "HH:MM" (24h), e.g. "08:00"
+  teeTimeInterval?: number; // minutes between tee times (default 12)
   createdAt: string;
   updatedAt: string;
 }

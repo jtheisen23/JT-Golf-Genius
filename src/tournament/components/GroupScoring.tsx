@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Tournament } from '../types';
 import { getStrokesOnHole } from '../../utils/handicap';
 import { stablefordPoints, formatToPar } from '../scoring';
+import { formatHandicap } from '../../components/PlayerIndexInput';
 
 interface Props {
   tournament: Tournament;
@@ -139,7 +140,7 @@ export default function GroupScoring({
                   <div>
                     <div className="font-semibold">{p.name}</div>
                     <div className="text-xs text-neutral-500">
-                      CH {p.courseHandicap} · Thru {t.thru}
+                      CH {formatHandicap(p.courseHandicap)} · Thru {t.thru}
                       {t.thru > 0 && ` · ${formatToPar(t.toPar)}`}
                     </div>
                   </div>

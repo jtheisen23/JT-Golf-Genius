@@ -1,6 +1,6 @@
-import { ref, set, onValue, remove as fbRemove, get } from 'firebase/database';
+import { ref, set, onValue, remove as fbRemove, get, update } from 'firebase/database';
 import { db } from '../firebase';
-import type { Tournament } from './types';
+import type { Tournament, TourPlayer } from './types';
 
 /** Firebase drops empty arrays and converts arrays with gaps to objects.
  *  Normalize so downstream code always sees the expected shapes. */
@@ -27,6 +27,22 @@ export interface SyncAdapter {
   remove(eventId: string): void;
   /** Fetch all tournaments from Firebase, populate cache, return them. */
   fetchAll(): Promise<Tournament[]>;
+  /**
+   * Path-specific score write. Touches only
+   * `tournaments/{eventId}/scores/{groupId}/{playerId}/{hole}` so concurrent
+   * full-document writes from other clients can't blank out other holes.
+   */
+  saveScore(
+    eventId: string,
+    groupId: string,
+    playerId: string,
+    hole: number,
+    value: number | null,
+  ): void;
+  /** Path-specific player update — same race-safety reasoning as saveScore. */
+  savePlayer(eventId: string, player: TourPlayer): void;
+  /** Path-specific top-level field update (e.g. tee-time backfill). */
+  saveMeta(eventId: string, patch: Partial<Tournament>): void;
 }
 
 /**
@@ -124,6 +140,80 @@ export class FirebaseSync implements SyncAdapter {
     // Also update index
     this.indexIds = tournaments.map((t) => t.id);
     return tournaments;
+  }
+
+  saveScore(
+    eventId: string,
+    groupId: string,
+    playerId: string,
+    hole: number,
+    value: number | null,
+  ): void {
+    const updatedAt = new Date().toISOString();
+
+    // Keep the in-memory cache in step with the targeted write so subsequent
+    // mutate()s don't read a stale tournament and write the cell back blank.
+    const cached = this.cache.get(eventId);
+    if (cached) {
+      const groupScores = { ...(cached.scores[groupId] || {}) };
+      const playerScores = { ...(groupScores[playerId] || {}) };
+      if (value == null) delete playerScores[hole];
+      else playerScores[hole] = value;
+      groupScores[playerId] = playerScores;
+      this.cache.set(eventId, {
+        ...cached,
+        scores: { ...cached.scores, [groupId]: groupScores },
+        updatedAt,
+      });
+    }
+
+    const cellPath = `tournaments/${eventId}/scores/${groupId}/${playerId}/${hole}`;
+    if (value == null) {
+      fbRemove(ref(db, cellPath));
+    } else {
+      set(ref(db, cellPath), value);
+    }
+    set(ref(db, `tournaments/${eventId}/updatedAt`), updatedAt);
+
+    // Make sure the index has us — handles the edge case of a brand-new
+    // tournament where save() hasn't run yet.
+    set(ref(db, `tournament-index/${eventId}`), true);
+  }
+
+  savePlayer(eventId: string, player: TourPlayer): void {
+    const updatedAt = new Date().toISOString();
+
+    const cached = this.cache.get(eventId);
+    if (cached) {
+      this.cache.set(eventId, {
+        ...cached,
+        players: { ...cached.players, [player.id]: player },
+        updatedAt,
+      });
+    }
+
+    // update() merges these two paths in one round-trip without disturbing
+    // sibling fields like `scores`.
+    const clean = JSON.parse(JSON.stringify(player));
+    update(ref(db, `tournaments/${eventId}`), {
+      [`players/${player.id}`]: clean,
+      updatedAt,
+    });
+    set(ref(db, `tournament-index/${eventId}`), true);
+  }
+
+  /** Path-specific top-level field update (e.g. tee-time backfill from EventHome). */
+  saveMeta(eventId: string, patch: Partial<Tournament>): void {
+    const updatedAt = new Date().toISOString();
+
+    const cached = this.cache.get(eventId);
+    if (cached) {
+      this.cache.set(eventId, { ...cached, ...patch, updatedAt });
+    }
+
+    const clean = JSON.parse(JSON.stringify(patch));
+    update(ref(db, `tournaments/${eventId}`), { ...clean, updatedAt });
+    set(ref(db, `tournament-index/${eventId}`), true);
   }
 }
 

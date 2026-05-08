@@ -21,7 +21,7 @@ function useHashRoute(): [string, (next: string) => void] {
   return [hash, navigate];
 }
 
-function ModePicker({ onPick }: { onPick: (hash: string) => void }) {
+function HomeScreen({ onPickTournament }: { onPickTournament: () => void }) {
   return (
     <div className="min-h-screen bg-black text-neutral-100 flex flex-col items-center justify-center p-6">
       <div className="text-center mb-8">
@@ -31,27 +31,16 @@ function ModePicker({ onPick }: { onPick: (hash: string) => void }) {
           className="w-48 h-48 rounded-full object-cover mx-auto mb-4 border-2 border-neutral-700"
         />
         <h1 className="text-2xl font-bold">Who's Ready to Gamble</h1>
-        <p className="text-sm text-neutral-400 mt-1">Pick a mode</p>
       </div>
 
-      <div className="w-full max-w-sm space-y-3">
+      <div className="w-full max-w-sm">
         <button
-          onClick={() => onPick('#/t')}
+          onClick={onPickTournament}
           className="w-full p-5 bg-emerald-700 rounded-2xl text-left active:bg-emerald-800"
         >
           <div className="font-bold text-lg">Tournament</div>
           <div className="text-sm text-emerald-100/80">
-            Multiple groups, live leaderboard, handicaps
-          </div>
-        </button>
-
-        <button
-          onClick={() => onPick('#/vegas')}
-          className="w-full p-5 bg-red-700 rounded-2xl text-left active:bg-red-800"
-        >
-          <div className="font-bold text-lg">Vegas</div>
-          <div className="text-sm text-red-100/80">
-            Rotating partners game with presses
+            Multiple groups, live leaderboard, Vegas games, handicaps
           </div>
         </button>
       </div>
@@ -125,14 +114,18 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
 
-  // Auto-join if we navigated with a join code
+  // Auto-join if we navigated with a join code. Compare against the current
+  // gameCode (which may have been restored from localStorage on first render);
+  // otherwise a stale cached code makes /vegas/join/<NEW> silently keep the
+  // old game instead of switching to <NEW>.
+  const { gameCode: currentGameCode, joinGame } = round;
   useEffect(() => {
-    if (initialJoinCode && !round.gameCode) {
-      round.joinGame(initialJoinCode).then((ok) => {
-        if (!ok) setJoinError(`Game "${initialJoinCode}" not found`);
-      });
-    }
-  }, [initialJoinCode]);
+    if (!initialJoinCode) return;
+    if (initialJoinCode === currentGameCode) return;
+    joinGame(initialJoinCode).then((ok) => {
+      if (!ok) setJoinError(`Game "${initialJoinCode}" not found`);
+    });
+  }, [initialJoinCode, currentGameCode, joinGame]);
 
   if (joining) {
     return (
@@ -153,7 +146,7 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
   if (round.screen === 'history') {
     return (
       <RoundHistory
-        onBack={() => round.setScreen('setup')}
+        onBack={onExit}
         onEditRound={(saved) => round.loadSavedRound(saved)}
       />
     );
@@ -189,8 +182,12 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
           getMultiplierValue={round.getMultiplierValue}
           onBack={() => round.setScreen('holes')}
           onFinish={() => {
+            // Save the round to localStorage history, then exit Vegas back to
+            // the tournaments list so the user can start (or open) another
+            // event. Going to 'history' here would strand them on a dead-end
+            // screen now that standalone Vegas has been removed.
             round.finishRound();
-            round.setScreen('history');
+            onExit();
           }}
         />
       </>
@@ -340,24 +337,23 @@ export default function App() {
           onLeaderboard={lastTournamentId ? () => navigate(`#/t/${lastTournamentId}/leaderboard`) : undefined}
         />
         <ErrorBoundary>
-          <VegasApp onExit={() => navigate('#/')} initialJoinCode={joinCode} />
+          <VegasApp onExit={() => navigate('#/t')} initialJoinCode={joinCode} />
         </ErrorBoundary>
       </>
     );
   }
 
   if (hash.startsWith('#/t')) {
+    // No ModeToggle in tournament mode — Vegas is reachable only by launching
+    // it from a group inside a tournament, not as a standalone mode.
     return (
-      <>
-        <ModeToggle current="tournament" onSwitch={() => navigate('#/vegas')} />
-        <TournamentApp
-          route={hash}
-          onNavigate={navigate}
-          onExit={() => navigate('#/')}
-        />
-      </>
+      <TournamentApp
+        route={hash}
+        onNavigate={navigate}
+        onExit={() => navigate('#/')}
+      />
     );
   }
 
-  return <ModePicker onPick={navigate} />;
+  return <HomeScreen onPickTournament={() => navigate('#/t')} />;
 }
