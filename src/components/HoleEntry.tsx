@@ -66,8 +66,24 @@ export default function HoleEntry({
   const [newMatchRotation, setNewMatchRotation] = useState(1);
   const [newMatchTeam1, setNewMatchTeam1] = useState<[string, string]>(['', '']);
   const [newMatchTeam2, setNewMatchTeam2] = useState<[string, string]>(['', '']);
-  const hole = holes.find((h) => h.number === currentHole)!;
+  const hole = holes.find((h) => h.number === currentHole) ?? holes[0];
   const totalPar = holes.reduce((sum, h) => sum + h.par, 0);
+  if (!hole) {
+    return (
+      <div className="min-h-screen bg-black p-6 text-white flex flex-col gap-3">
+        <h1 className="text-lg font-bold text-red-500">Round data is incomplete</h1>
+        <p className="text-sm text-neutral-300">
+          This round has no hole setup, so it can't be displayed. Tap below to go back.
+        </p>
+        <button
+          onClick={onShowScoreboard}
+          className="bg-neutral-800 text-neutral-200 px-4 py-2 rounded text-sm self-start"
+        >
+          Back to scoreboard
+        </button>
+      </div>
+    );
+  }
   const computeHandicap = (index: number) =>
     Math.round(index * (slope / 113) + (courseRating - totalPar));
   const activeMatches = getActiveMatches();
