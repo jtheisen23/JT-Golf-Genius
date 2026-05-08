@@ -314,6 +314,19 @@ export default function App() {
   const [hash, navigate] = useHashRoute();
   const [lastTournamentRoute, setLastTournamentRoute] = useState('#/t');
 
+  // Visiting #/vegas/reset clears the active-round / game-code keys and lands
+  // the user on a fresh Vegas Setup screen. Useful when a stale game-code in
+  // localStorage keeps auto-routing into a wiped/abandoned Vegas game and the
+  // History button (only on Setup) is therefore unreachable.
+  useEffect(() => {
+    if (hash === '#/vegas/reset') {
+      localStorage.removeItem('vegas-golf-active-round');
+      localStorage.removeItem('vegas-golf-game-code');
+      window.location.hash = '#/vegas';
+      window.location.reload();
+    }
+  }, [hash]);
+
   // Track the last tournament route so we can return to it
   useEffect(() => {
     if (hash.startsWith('#/t')) {
