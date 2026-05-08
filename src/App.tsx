@@ -347,11 +347,13 @@ export default function App() {
     // No ModeToggle in tournament mode — Vegas is reachable only by launching
     // it from a group inside a tournament, not as a standalone mode.
     return (
-      <TournamentApp
-        route={hash}
-        onNavigate={navigate}
-        onExit={() => navigate('#/')}
-      />
+      <ErrorBoundary>
+        <TournamentApp
+          route={hash}
+          onNavigate={navigate}
+          onExit={() => navigate('#/')}
+        />
+      </ErrorBoundary>
     );
   }
 
