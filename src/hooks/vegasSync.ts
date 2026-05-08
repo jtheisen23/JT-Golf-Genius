@@ -37,10 +37,33 @@ export async function createVegasGame(state: VegasGameState): Promise<string> {
   return code;
 }
 
+/** Coerce a raw Firebase document into a fully-populated VegasGameState.
+ *  Firebase RTDB silently drops empty arrays/objects, so callers cannot
+ *  assume any field exists. Centralizing this defaulting here means every
+ *  downstream consumer (joinGame, subscribe, leaderboard, scoring) sees a
+ *  consistent shape and never has to forEach/map on undefined. */
+function sanitizeVegasState(raw: unknown): VegasGameState {
+  const r = (raw ?? {}) as Partial<VegasGameState>;
+  return {
+    screen: r.screen ?? 'scoreboard',
+    players: r.players ?? [],
+    holes: r.holes ?? [],
+    matches: r.matches ?? [],
+    scores: r.scores ?? {},
+    currentHole: r.currentHole ?? 1,
+    courseName: r.courseName ?? '',
+    pointValue: r.pointValue ?? 0.5,
+    multipliers: r.multipliers ?? {},
+    handicapMode: r.handicapMode ?? 'off-the-low',
+    slope: r.slope,
+    courseRating: r.courseRating,
+  };
+}
+
 /** Load a Vegas game by code. Returns null if not found. */
 export async function loadVegasGame(code: string): Promise<VegasGameState | null> {
   const snap = await get(ref(db, `vegas/${code.toUpperCase()}`));
-  return snap.exists() ? (snap.val() as VegasGameState) : null;
+  return snap.exists() ? sanitizeVegasState(snap.val()) : null;
 }
 
 /** Save full Vegas game state to Firebase. */
@@ -128,7 +151,7 @@ export function subscribeVegasGame(
 ): () => void {
   const gameRef = ref(db, `vegas/${code}`);
   return onValue(gameRef, (snap) => {
-    const val = snap.val() as VegasGameState | null;
-    if (val) listener(val);
+    if (!snap.exists()) return;
+    listener(sanitizeVegasState(snap.val()));
   });
 }
