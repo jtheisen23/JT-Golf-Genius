@@ -6,6 +6,7 @@ import Scoreboard from './components/Scoreboard';
 import RoundHistory from './components/RoundHistory';
 import Scorecard from './components/Scorecard';
 import TournamentApp from './tournament/TournamentApp';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function useHashRoute(): [string, (next: string) => void] {
   const [hash, setHash] = useState(() => window.location.hash || '#/');
@@ -335,7 +336,9 @@ export default function App() {
           onSwitch={() => navigate(lastTournamentRoute)}
           onLeaderboard={lastTournamentId ? () => navigate(`#/t/${lastTournamentId}/leaderboard`) : undefined}
         />
-        <VegasApp onExit={() => navigate('#/t')} initialJoinCode={joinCode} />
+        <ErrorBoundary>
+          <VegasApp onExit={() => navigate('#/t')} initialJoinCode={joinCode} />
+        </ErrorBoundary>
       </>
     );
   }
