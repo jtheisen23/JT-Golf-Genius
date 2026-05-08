@@ -71,10 +71,16 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
               {expandedId === round.id && (
                 <div className="px-4 pb-4 border-t border-neutral-800 pt-3">
                   <div className="text-xs text-neutral-500 mb-2">
-                    Players: {round.players.map((p) => p.name).join(', ')}
+                    Players: {(round.players ?? []).map((p) => p.name).join(', ')}
                   </div>
 
-                  {round.results.map((result) => (
+                  {(round.results ?? []).length === 0 && (
+                    <div className="text-xs text-neutral-500 italic mb-2">
+                      No match results recorded for this round.
+                    </div>
+                  )}
+
+                  {(round.results ?? []).map((result) => (
                     <div key={result.matchId} className="bg-neutral-800 rounded-lg p-3 mb-2">
                       <div className="flex items-center justify-between">
                         <div className="text-sm">
