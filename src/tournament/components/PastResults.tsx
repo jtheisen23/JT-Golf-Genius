@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { sync } from '../sync';
 import { buildLeaderboard, formatToPar } from '../scoring';
 import { isFuture, formatPlayDate } from '../dateUtils';
@@ -11,7 +11,7 @@ interface Props {
 
 type View = 'net' | 'gross' | 'stableford';
 
-function loadPastEvents(): Tournament[] {
+function loadPastEventsFromCache(): Tournament[] {
   return sync
     .listEventIds()
     .map((id) => sync.load(id))
@@ -100,8 +100,25 @@ function MiniLeaderboard({ tournament }: { tournament: Tournament }) {
 }
 
 export default function PastResults({ onBack, onOpenLeaderboard }: Props) {
-  const [events] = useState<Tournament[]>(() => loadPastEvents());
+  // Seed from cache so the page renders instantly with whatever the in-memory
+  // sync has, then re-fetch from Firebase so a tournament whose scores were
+  // just imported (or whose cache was stale) shows up after this mount.
+  const [events, setEvents] = useState<Tournament[]>(() => loadPastEventsFromCache());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+    sync.fetchAll()
+      .then((all) => {
+        if (cancelled) return;
+        const fresh = all
+          .filter((t) => !isFuture(t.date))
+          .sort((a, b) => b.date.localeCompare(a.date));
+        setEvents(fresh);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const toggle = (id: string) => {
     setExpanded((prev) => {
