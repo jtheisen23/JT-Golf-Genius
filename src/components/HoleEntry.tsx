@@ -134,6 +134,7 @@ export default function HoleEntry({
                       onChange={(idx) => {
                         onUpdatePlayer(player.id, 'handicapIndex', idx);
                         onUpdatePlayer(player.id, 'handicap', computeHandicap(idx));
+                        onRecalculateStrokes();
                       }}
                       className="w-full bg-neutral-700 text-white rounded-lg px-3 py-2 text-sm border border-neutral-600 focus:border-red-500 focus:outline-none"
                     />
