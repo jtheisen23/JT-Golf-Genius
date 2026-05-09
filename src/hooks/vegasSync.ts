@@ -66,9 +66,40 @@ export async function loadVegasGame(code: string): Promise<VegasGameState | null
   return snap.exists() ? sanitizeVegasState(snap.val()) : null;
 }
 
-/** Save full Vegas game state to Firebase. */
+/** Has the state recorded any actual gross scores yet? Used as the "did this
+ *  round get played?" check when guarding against accidental wipes. */
+function hasScores(state: VegasGameState): boolean {
+  for (const playerScores of Object.values(state.scores ?? {})) {
+    if (Object.keys(playerScores).length > 0) return true;
+  }
+  return false;
+}
+
+/** Save full Vegas game state to Firebase, refusing to wipe a populated remote
+ *  doc with a blank one. Without this guard, a race between the Firebase
+ *  onValue listener clearing isRemoteUpdate and the sync useEffect committing
+ *  with the post-finishRound reset state can echo an empty payload back to
+ *  Firebase and erase a real round's worth of scores. */
 export function saveVegasGame(code: string, state: VegasGameState): void {
-  set(ref(db, `vegas/${code}`), state);
+  if (hasScores(state)) {
+    set(ref(db, `vegas/${code}`), state);
+    return;
+  }
+  // New state has no scores — only allow the write if the remote doc is also
+  // empty (e.g. first save right after createVegasGame, or a doc that never
+  // had scores). Read-then-write is fire-and-forget; matches the existing
+  // call-sites that don't await this function.
+  get(ref(db, `vegas/${code}`)).then((snap) => {
+    if (!snap.exists()) {
+      set(ref(db, `vegas/${code}`), state);
+      return;
+    }
+    if (!hasScores(sanitizeVegasState(snap.val()))) {
+      set(ref(db, `vegas/${code}`), state);
+    }
+    // else: silently refuse — the remote already has scores, this empty
+    // write would be the bug we are guarding against.
+  }).catch(() => {});
 }
 
 function generateId(): string {
