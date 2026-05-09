@@ -4,6 +4,7 @@ import { loadRounds, deleteRound } from '../utils/storage';
 import ShareMenu from './ShareMenu';
 import { sync } from '../tournament/sync';
 import type { Tournament } from '../tournament/types';
+import { saveVegasGame, type VegasGameState } from '../hooks/vegasSync';
 
 interface Props {
   onBack: () => void;
@@ -14,6 +15,7 @@ interface Match {
   tournament: Tournament;
   groupId: string;
   groupName: string;
+  vegasGameCode?: string;
 }
 
 /** Find tournament groups whose playerIds set equals the saved round's player IDs.
@@ -28,7 +30,7 @@ function findMatchingGroups(round: SavedRound, tournaments: Tournament[]): Match
       if (groupIds.size !== roundIds.size) continue;
       let same = true;
       for (const id of groupIds) if (!roundIds.has(id)) { same = false; break; }
-      if (same) matches.push({ tournament: t, groupId: g.id, groupName: g.name });
+      if (same) matches.push({ tournament: t, groupId: g.id, groupName: g.name, vegasGameCode: g.vegasGameCode });
     }
   }
   return matches;
@@ -94,9 +96,34 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
         written += 1;
       }
     }
+
+    // Also rebuild the Vegas Firebase doc from the saved round so the
+    // leaderboard's Money column (which reads vegas/{code}, not tournament
+    // scores) populates again. Only does anything if the group had a
+    // vegasGameCode recorded — otherwise the Vegas side never existed.
+    let vegasRestored = false;
+    if (target.vegasGameCode) {
+      const state: VegasGameState = {
+        screen: 'scoreboard',
+        players: round.players,
+        holes: round.holes,
+        matches: round.matches,
+        scores: round.scores ?? {},
+        currentHole: 18,
+        courseName: round.courseName,
+        pointValue: round.pointsPerDollar,
+        multipliers: round.multipliers ?? {},
+        handicapMode: 'off-the-low',
+        slope: round.slope,
+        courseRating: round.courseRating,
+      };
+      saveVegasGame(target.vegasGameCode, state);
+      vegasRestored = true;
+    }
+
     setImportStatus((s) => ({
       ...s,
-      [round.id]: `✓ Imported ${written} scores into ${target.tournament.name} — ${target.groupName}.`,
+      [round.id]: `✓ Imported ${written} scores into ${target.tournament.name} — ${target.groupName}.${vegasRestored ? ' Vegas game restored.' : ''}`,
     }));
   };
 
