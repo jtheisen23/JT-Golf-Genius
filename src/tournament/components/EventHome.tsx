@@ -377,6 +377,10 @@ export default function EventHome({
               groupPlayers,
               tournament.holes,
               tournament.courseName,
+              undefined,
+              undefined,
+              tournament.id,
+              g.id,
             );
             onUpdateGroup(g.id, { vegasGameCode: code });
             onLaunchVegas(code);
