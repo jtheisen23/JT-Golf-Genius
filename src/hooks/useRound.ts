@@ -4,6 +4,7 @@ import { calculateStrokesReceived } from '../utils/handicap';
 import { calculateVegasPoints, getNetScore } from '../utils/scoring';
 import { saveRound } from '../utils/storage';
 import { createVegasGame, saveVegasGame, subscribeVegasGame, loadVegasGame, VegasGameState } from './vegasSync';
+import { sync as tournamentSync } from '../tournament/sync';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
@@ -59,6 +60,11 @@ export function useRound() {
   const [courseRating, setCourseRating] = useState<number>(saved?.courseRating || 70);
   const [multipliers, setMultipliers] = useState<Record<string, Record<number, Multiplier>>>(saved?.multipliers || {});
   const [gameCode, setGameCode] = useState<string | null>(loadGameCode);
+  // Tournament + group this Vegas game was launched from. When both are set,
+  // every score write is mirrored into tournament.scores so the tournament
+  // side has a durable second copy that survives any Vegas-doc loss.
+  const [tournamentId, setTournamentId] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
 
   // Track whether the last state update came from Firebase to avoid echo writes
   const isRemoteUpdate = useRef(false);
@@ -85,6 +91,8 @@ export function useRound() {
       setHandicapMode(remote.handicapMode ?? 'off-the-low');
       if (remote.slope != null) setSlope(remote.slope);
       if (remote.courseRating != null) setCourseRating(remote.courseRating);
+      if (remote.tournamentId) setTournamentId(remote.tournamentId);
+      if (remote.groupId) setGroupId(remote.groupId);
       // Clear the flag after a microtask so the subsequent useEffect skip works
       queueMicrotask(() => { isRemoteUpdate.current = false; });
     });
@@ -250,6 +258,8 @@ export function useRound() {
     setHandicapMode(remote.handicapMode ?? 'off-the-low');
     if (remote.slope != null) setSlope(remote.slope);
     if (remote.courseRating != null) setCourseRating(remote.courseRating);
+    setTournamentId(remote.tournamentId ?? null);
+    setGroupId(remote.groupId ?? null);
     setGameCode(code.toUpperCase());
     localStorage.setItem(ACTIVE_GAME_CODE_KEY, code.toUpperCase());
     return true;
@@ -263,7 +273,12 @@ export function useRound() {
         [holeNumber]: grossScore,
       },
     }));
-  }, []);
+    // Mirror to tournament.scores so the tournament side has a durable copy
+    // even if the Vegas doc is later wiped or lost.
+    if (tournamentId && groupId) {
+      tournamentSync.saveScore(tournamentId, groupId, playerId, holeNumber, grossScore);
+    }
+  }, [tournamentId, groupId]);
 
   const getMultiplier = useCallback(
     (matchId: string, holeNumber: number): Multiplier => {
@@ -297,7 +312,10 @@ export function useRound() {
       delete playerScores[holeNumber];
       return { ...prev, [playerId]: playerScores };
     });
-  }, []);
+    if (tournamentId && groupId) {
+      tournamentSync.saveScore(tournamentId, groupId, playerId, holeNumber, null);
+    }
+  }, [tournamentId, groupId]);
 
   const getMatchResultsForHole = useCallback(
     (match: Match, holeNumber: number) => {
@@ -404,6 +422,8 @@ export function useRound() {
     localStorage.removeItem(ACTIVE_ROUND_KEY);
     localStorage.removeItem(ACTIVE_GAME_CODE_KEY);
     setGameCode(null);
+    setTournamentId(null);
+    setGroupId(null);
 
     setPlayers([
       { id: generateId(), name: '', handicapIndex: 0, handicap: 0, strokesReceived: 0 },

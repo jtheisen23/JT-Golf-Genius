@@ -18,6 +18,11 @@ export interface VegasGameState {
   screen: string;
   slope?: number;
   courseRating?: number;
+  /** Tournament + group this Vegas game was launched from. When set, score
+   *  writes are mirrored to tournament.scores so the tournament side has a
+   *  durable second copy that survives any Vegas-doc wipe. */
+  tournamentId?: string;
+  groupId?: string;
 }
 
 function generateCode(): string {
@@ -57,6 +62,8 @@ function sanitizeVegasState(raw: unknown): VegasGameState {
     handicapMode: r.handicapMode ?? 'off-the-low',
     slope: r.slope,
     courseRating: r.courseRating,
+    tournamentId: r.tournamentId,
+    groupId: r.groupId,
   };
 }
 
@@ -117,6 +124,8 @@ export async function createVegasGameFromTournament(
   courseName: string,
   pointValue = 0.5,
   handicapMode: HandicapMode = 'off-the-low',
+  tournamentId?: string,
+  groupId?: string,
 ): Promise<string> {
   // Convert TourPlayer → Player
   const rawPlayers: Player[] = tourPlayers.map((tp) => ({
@@ -170,6 +179,8 @@ export async function createVegasGameFromTournament(
     pointValue,
     multipliers: {},
     handicapMode,
+    tournamentId,
+    groupId,
   };
 
   return createVegasGame(state);
