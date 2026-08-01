@@ -30,6 +30,8 @@ export interface Tournament {
   id: string;
   name: string;
   courseName: string;
+  slope?: number; // course slope rating (default 132)
+  courseRating?: number; // course rating (default 70)
   date: string; // ISO date (YYYY-MM-DD)
   playDay?: PlayDay; // optional weekly tag: friday/sunday play
   holes: TourHole[];

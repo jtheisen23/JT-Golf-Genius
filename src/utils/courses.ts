@@ -1,3 +1,5 @@
+import { ref, set, onValue, remove } from 'firebase/database';
+import { db } from '../firebase';
 import { Course, HoleSetup } from '../types';
 
 // Built-in default course. Kept as the first option everywhere and cannot be
@@ -17,11 +19,14 @@ export const GENEVA_COURSE: Course = {
   })),
 };
 
-const CUSTOM_COURSES_KEY = 'vegas-golf-courses';
+// Shared library lives in Firebase so every device sees the same courses.
+// localStorage mirrors it as an offline / first-paint cache.
+const COURSES_PATH = 'courses';
+const CACHE_KEY = 'vegas-golf-courses';
 
-export function loadCustomCourses(): Course[] {
+function loadCache(): Course[] {
   try {
-    const data = localStorage.getItem(CUSTOM_COURSES_KEY);
+    const data = localStorage.getItem(CACHE_KEY);
     if (data) return JSON.parse(data);
   } catch {
     // Corrupt/unreadable storage — fall back to no custom courses.
@@ -29,29 +34,58 @@ export function loadCustomCourses(): Course[] {
   return [];
 }
 
-function persist(courses: Course[]): void {
-  localStorage.setItem(CUSTOM_COURSES_KEY, JSON.stringify(courses));
+function writeCache(courses: Course[]): void {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(courses));
+  } catch {
+    // Storage full or unavailable — the Firebase copy is still the source of truth.
+  }
 }
 
-// Add or update a custom course, returning the full updated custom list.
-export function saveCustomCourse(course: Course): Course[] {
-  const courses = loadCustomCourses();
-  const idx = courses.findIndex((c) => c.id === course.id);
-  if (idx >= 0) courses[idx] = course;
-  else courses.push(course);
-  persist(courses);
-  return courses;
+// RTDB may hand arrays back as objects; normalize holes to a real array.
+function normalize(course: Course): Course {
+  const holes = Array.isArray(course.holes)
+    ? course.holes
+    : (Object.values(course.holes ?? {}) as HoleSetup[]);
+  return { ...course, holes };
 }
 
-export function deleteCustomCourse(id: string): Course[] {
-  const courses = loadCustomCourses().filter((c) => c.id !== id);
-  persist(courses);
-  return courses;
-}
-
-// Geneva first, then any user-added courses.
+// Geneva first, then any user-added courses (from the local cache — synchronous
+// for initial render). Live updates arrive through subscribeCourses.
 export function getAllCourses(): Course[] {
-  return [GENEVA_COURSE, ...loadCustomCourses()];
+  return [GENEVA_COURSE, ...loadCache()];
+}
+
+// Subscribe to the shared course library. Emits [Geneva, ...custom] whenever the
+// Firebase data changes, and keeps the local cache in step. Returns an unsub fn.
+export function subscribeCourses(cb: (courses: Course[]) => void): () => void {
+  const coursesRef = ref(db, COURSES_PATH);
+  return onValue(
+    coursesRef,
+    (snap) => {
+      const val = snap.val();
+      const custom = (val ? Object.values(val) : []).map((c) => normalize(c as Course));
+      writeCache(custom);
+      cb([GENEVA_COURSE, ...custom]);
+    },
+    () => {
+      // Firebase unreachable — serve whatever the cache has.
+      cb(getAllCourses());
+    },
+  );
+}
+
+// Add or update a course in the shared library (optimistically updates cache).
+export async function saveCustomCourse(course: Course): Promise<void> {
+  const next = loadCache().filter((c) => c.id !== course.id);
+  next.push(course);
+  writeCache(next);
+  await set(ref(db, `${COURSES_PATH}/${course.id}`), course);
+}
+
+export async function deleteCustomCourse(id: string): Promise<void> {
+  writeCache(loadCache().filter((c) => c.id !== id));
+  await remove(ref(db, `${COURSES_PATH}/${id}`));
 }
 
 // Build a blank 18-hole layout for a brand-new course (par 4s, handicaps 1-18).
