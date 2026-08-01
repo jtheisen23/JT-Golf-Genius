@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { fetchGhinIndex, applyAllowance, courseHandicap } from '../ghin';
 import { generateId } from '../useTournament';
+import { holeParsTotal } from '../scoring';
 import { randomizeGroups } from '../randomize';
 import { parseIndex, formatIndex, formatHandicap } from '../../components/PlayerIndexInput';
 import { PLAY_DAYS, PLAY_DAY_LABELS, nextDateForDay } from '../dateUtils';
-import type { PlayDay, Tournament, TourGroup, TourPlayer } from '../types';
+import { blankHoles, GENEVA_COURSE } from '../../utils/courses';
+import { useCourses } from '../../hooks/useCourses';
+import type { Course } from '../../types';
+import type { PlayDay, Tournament, TourGroup, TourHole, TourPlayer } from '../types';
 
 interface Props {
   tournament: Tournament;
@@ -22,6 +26,9 @@ interface Props {
         Tournament,
         | 'name'
         | 'courseName'
+        | 'slope'
+        | 'courseRating'
+        | 'holes'
         | 'date'
         | 'format'
         | 'handicapAllowance'
@@ -56,8 +63,102 @@ export default function TournamentSetup({
   const assignedIds = new Set(tournament.groups.flatMap((g) => g.playerIds));
   const unassigned = players.filter((p) => !assignedIds.has(p.id));
 
-  const recomputeCourseHandicap = (p: TourPlayer): number =>
-    applyAllowance(courseHandicap(p.handicapIndex, 132, 70, 68), tournament.handicapAllowance);
+  // Course rating numbers used for course-handicap math. Fall back to Geneva's
+  // values for tournaments created before slope/rating were stored.
+  const slope = tournament.slope ?? GENEVA_COURSE.slope;
+  const courseRating = tournament.courseRating ?? GENEVA_COURSE.courseRating;
+  const coursePar = holeParsTotal(tournament.holes);
+
+  const recomputeCourseHandicap = (
+    p: TourPlayer,
+    s = slope,
+    r = courseRating,
+    par = coursePar,
+  ): number => applyAllowance(courseHandicap(p.handicapIndex, s, r, par), tournament.handicapAllowance);
+
+  // Course library: Geneva (built-in) + any user-added courses, synced across
+  // devices through Firebase.
+  const { courses, saveCourse, deleteCourse } = useCourses();
+  // `null` = follow the tournament's current course automatically; an explicit
+  // '' means the user diverged (Custom); a real id means a chosen course.
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [showAddCourse, setShowAddCourse] = useState(false);
+  const [draft, setDraft] = useState<Course>(() => ({
+    id: '',
+    name: '',
+    slope: 113,
+    courseRating: 72,
+    holes: blankHoles(),
+  }));
+
+  // Derived selection: when the user hasn't explicitly chosen, match the
+  // tournament's current course against the (live) library. This resolves
+  // correctly once the Firebase-synced list arrives on a fresh device.
+  const matchedCourse = courses.find(
+    (c) => c.name === tournament.courseName && c.slope === slope && c.courseRating === courseRating,
+  );
+  const selectedValue = selectedCourseId ?? matchedCourse?.id ?? '';
+
+  // Apply a saved course: set name, slope, rating and per-hole pars in one meta
+  // write, then recompute every player's course handicap against the new numbers.
+  const applyCourse = (course: Course) => {
+    const holes: TourHole[] = course.holes.map((h) => ({
+      number: h.number,
+      par: h.par,
+      handicapRating: h.handicapRating,
+    }));
+    onUpdateMeta({
+      courseName: course.name,
+      slope: course.slope,
+      courseRating: course.courseRating,
+      holes,
+    });
+    const par = course.holes.reduce((sum, h) => sum + h.par, 0);
+    players.forEach((p) => {
+      onUpdatePlayer(p.id, {
+        courseHandicap: recomputeCourseHandicap(p, course.slope, course.courseRating, par),
+      });
+    });
+  };
+
+  const handleSelectCourse = (id: string) => {
+    const course = courses.find((c) => c.id === id);
+    if (!course) return;
+    setSelectedCourseId(id);
+    applyCourse(course);
+  };
+
+  const startAddCourse = () => {
+    setDraft({ id: '', name: '', slope: 113, courseRating: 72, holes: blankHoles() });
+    setShowAddCourse(true);
+  };
+
+  const updateDraftHole = (holeNum: number, field: 'par' | 'handicapRating', value: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      holes: prev.holes.map((h) => (h.number === holeNum ? { ...h, [field]: value } : h)),
+    }));
+  };
+
+  const draftPar = draft.holes.reduce((sum, h) => sum + h.par, 0);
+
+  const handleSaveCourse = () => {
+    const name = draft.name.trim();
+    if (!name) return;
+    const newCourse: Course = { ...draft, name, id: `course-${generateId()}` };
+    saveCourse(newCourse);
+    setSelectedCourseId(newCourse.id);
+    applyCourse(newCourse);
+    setShowAddCourse(false);
+  };
+
+  const handleDeleteCourse = () => {
+    if (!selectedValue || selectedValue === GENEVA_COURSE.id) return;
+    if (!confirm('Delete this course? This cannot be undone.')) return;
+    deleteCourse(selectedValue);
+    setSelectedCourseId(GENEVA_COURSE.id);
+    applyCourse(GENEVA_COURSE);
+  };
 
   const handleAddPlayer = () => {
     const id = generateId();
@@ -79,7 +180,10 @@ export default function TournamentSetup({
       };
       if (!tournament.players[playerId].name) patch.name = result.name;
       onUpdatePlayer(playerId, patch);
-      const ch = applyAllowance(courseHandicap(result.handicapIndex, 132, 70, 68), tournament.handicapAllowance);
+      const ch = applyAllowance(
+        courseHandicap(result.handicapIndex, slope, courseRating, coursePar),
+        tournament.handicapAllowance,
+      );
       onUpdatePlayer(playerId, { courseHandicap: ch });
       setGhinLookup((s) => ({ ...s, [playerId]: { loading: false } }));
     } catch (err) {
@@ -151,13 +255,175 @@ export default function TournamentSetup({
               placeholder="Spring Invitational"
             />
           </Field>
-          <Field label="Course">
-            <input
-              value={tournament.courseName}
-              onChange={(e) => onUpdateMeta({ courseName: e.target.value })}
+          <div className="bg-neutral-900 rounded-lg p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-neutral-400 uppercase tracking-wide">Course</div>
+              <button
+                type="button"
+                onClick={startAddCourse}
+                className="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded"
+              >
+                + Add course
+              </button>
+            </div>
+            <select
+              value={selectedValue}
+              onChange={(e) => handleSelectCourse(e.target.value)}
               className="input"
-            />
-          </Field>
+            >
+              {selectedValue === '' && <option value="">Custom (unsaved)</option>}
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — Slope {c.slope} / Rating {c.courseRating}
+                </option>
+              ))}
+            </select>
+            <Field label="Course name">
+              <input
+                value={tournament.courseName}
+                onChange={(e) => {
+                  onUpdateMeta({ courseName: e.target.value });
+                  setSelectedCourseId('');
+                }}
+                className="input"
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Slope">
+                <input
+                  type="number"
+                  value={slope}
+                  min={55}
+                  max={155}
+                  onChange={(e) => {
+                    const newSlope = parseInt(e.target.value) || GENEVA_COURSE.slope;
+                    onUpdateMeta({ slope: newSlope });
+                    setSelectedCourseId('');
+                    players.forEach((p) =>
+                      onUpdatePlayer(p.id, {
+                        courseHandicap: recomputeCourseHandicap(p, newSlope, courseRating, coursePar),
+                      }),
+                    );
+                  }}
+                  className="input"
+                />
+              </Field>
+              <Field label="Rating">
+                <input
+                  type="number"
+                  step="0.1"
+                  value={courseRating}
+                  onChange={(e) => {
+                    const newRating = parseFloat(e.target.value) || GENEVA_COURSE.courseRating;
+                    onUpdateMeta({ courseRating: newRating });
+                    setSelectedCourseId('');
+                    players.forEach((p) =>
+                      onUpdatePlayer(p.id, {
+                        courseHandicap: recomputeCourseHandicap(p, slope, newRating, coursePar),
+                      }),
+                    );
+                  }}
+                  className="input"
+                />
+              </Field>
+            </div>
+            {selectedValue && selectedValue !== GENEVA_COURSE.id && (
+              <button
+                type="button"
+                onClick={handleDeleteCourse}
+                className="text-xs text-red-400"
+              >
+                Delete this course
+              </button>
+            )}
+            <p className="text-[11px] text-neutral-500">
+              Pick a course to fill in its slope, rating and pars. Geneva Golf Club is the default
+              and can't be removed. Edit pars on the Holes tab.
+            </p>
+          </div>
+
+          {showAddCourse && (
+            <div className="bg-neutral-900 rounded-lg p-3 space-y-3 border border-emerald-700/40">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-emerald-300">New course</div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCourse(false)}
+                  className="text-xs text-neutral-400"
+                >
+                  Cancel
+                </button>
+              </div>
+              <Field label="Course name">
+                <input
+                  value={draft.name}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Pebble Beach"
+                  className="input"
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Slope">
+                  <input
+                    type="number"
+                    value={draft.slope}
+                    min={55}
+                    max={155}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, slope: parseInt(e.target.value) || 113 }))
+                    }
+                    className="input"
+                  />
+                </Field>
+                <Field label="Rating">
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={draft.courseRating}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, courseRating: parseFloat(e.target.value) || 72 }))
+                    }
+                    className="input"
+                  />
+                </Field>
+              </div>
+              <div className="text-xs text-neutral-400 uppercase tracking-wide">
+                Par &amp; SI by hole (par {draftPar})
+              </div>
+              <div className="grid grid-cols-[40px_1fr_1fr] gap-1 text-[10px] text-neutral-500 uppercase px-1">
+                <div>#</div>
+                <div>Par</div>
+                <div>SI</div>
+              </div>
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {draft.holes.map((h) => (
+                  <div key={h.number} className="grid grid-cols-[40px_1fr_1fr] gap-1 items-center">
+                    <div className="text-neutral-400 text-sm">{h.number}</div>
+                    <input
+                      type="number"
+                      value={h.par}
+                      onChange={(e) => updateDraftHole(h.number, 'par', Number(e.target.value))}
+                      className="input"
+                    />
+                    <input
+                      type="number"
+                      value={h.handicapRating}
+                      onChange={(e) => updateDraftHole(h.number, 'handicapRating', Number(e.target.value))}
+                      className="input"
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveCourse}
+                disabled={!draft.name.trim()}
+                className="w-full py-2.5 rounded-lg bg-emerald-600 text-white font-semibold text-sm disabled:opacity-40"
+              >
+                Save course
+              </button>
+            </div>
+          )}
           <Field label="Date">
             <input
               type="date"
@@ -436,13 +702,19 @@ export default function TournamentSetup({
                 <input
                   type="number"
                   value={h.par}
-                  onChange={(e) => onUpdateHole(h.number, { par: Number(e.target.value) })}
+                  onChange={(e) => {
+                    onUpdateHole(h.number, { par: Number(e.target.value) });
+                    setSelectedCourseId('');
+                  }}
                   className="input"
                 />
                 <input
                   type="number"
                   value={h.handicapRating}
-                  onChange={(e) => onUpdateHole(h.number, { handicapRating: Number(e.target.value) })}
+                  onChange={(e) => {
+                    onUpdateHole(h.number, { handicapRating: Number(e.target.value) });
+                    setSelectedCourseId('');
+                  }}
                   className="input"
                 />
               </div>

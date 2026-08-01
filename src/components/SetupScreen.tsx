@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { Player, Match, HoleSetup, HandicapMode, Course } from '../types';
 import PlayerIndexInput, { formatHandicap } from './PlayerIndexInput';
-import {
-  getAllCourses,
-  saveCustomCourse,
-  deleteCustomCourse,
-  blankHoles,
-  GENEVA_COURSE,
-} from '../utils/courses';
+import { blankHoles, GENEVA_COURSE } from '../utils/courses';
+import { useCourses } from '../hooks/useCourses';
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9);
+}
 
 interface Props {
   players: Player[];
@@ -75,14 +74,12 @@ export default function SetupScreen({
   const [newMatchTeam1, setNewMatchTeam1] = useState<[string, string]>(['', '']);
   const [newMatchTeam2, setNewMatchTeam2] = useState<[string, string]>(['', '']);
 
-  // Course library: Geneva (built-in) + any user-added courses from localStorage.
-  const [courses, setCourses] = useState<Course[]>(() => getAllCourses());
-  const [selectedCourseId, setSelectedCourseId] = useState<string>(() => {
-    const match = getAllCourses().find(
-      (c) => c.name === courseName && c.slope === slope && c.courseRating === courseRating,
-    );
-    return match?.id ?? '';
-  });
+  // Course library: Geneva (built-in) + any user-added courses, synced across
+  // devices through Firebase.
+  const { courses, saveCourse, deleteCourse } = useCourses();
+  // `null` = follow the current course automatically; an explicit '' means the
+  // user diverged (Custom); a real id means a chosen course.
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [draft, setDraft] = useState<Course>(() => ({
     id: '',
@@ -91,6 +88,13 @@ export default function SetupScreen({
     courseRating: 72,
     holes: blankHoles(),
   }));
+
+  // Derived selection: when the user hasn't explicitly chosen, match the current
+  // course against the (live) library so it resolves once the synced list loads.
+  const matchedCourse = courses.find(
+    (c) => c.name === courseName && c.slope === slope && c.courseRating === courseRating,
+  );
+  const selectedValue = selectedCourseId ?? matchedCourse?.id ?? '';
 
   const canProceedFromPlayers = players.length >= 4 && players.every((p) => p.name.trim());
 
@@ -142,22 +146,19 @@ export default function SetupScreen({
     const newCourse: Course = {
       ...draft,
       name,
-      id: `course-${Date.now()}`,
+      id: `course-${generateId()}`,
     };
-    setCourses(getAllCourses().concat(newCourse));
-    saveCustomCourse(newCourse);
-    setCourses(getAllCourses());
+    saveCourse(newCourse);
     setSelectedCourseId(newCourse.id);
     applyCourse(newCourse);
     setShowAddCourse(false);
   };
 
   const handleDeleteCourse = () => {
-    if (selectedCourseId === GENEVA_COURSE.id || !selectedCourseId) return;
+    if (!selectedValue || selectedValue === GENEVA_COURSE.id) return;
     const ok = window.confirm('Delete this course? This cannot be undone.');
     if (!ok) return;
-    deleteCustomCourse(selectedCourseId);
-    setCourses(getAllCourses());
+    deleteCourse(selectedValue);
     setSelectedCourseId(GENEVA_COURSE.id);
     applyCourse(GENEVA_COURSE);
   };
@@ -403,18 +404,18 @@ export default function SetupScreen({
               </button>
             </div>
             <select
-              value={selectedCourseId}
+              value={selectedValue}
               onChange={(e) => handleSelectCourse(e.target.value)}
               className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
             >
-              {selectedCourseId === '' && <option value="">Custom (unsaved)</option>}
+              {selectedValue === '' && <option value="">Custom (unsaved)</option>}
               {courses.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} — Slope {c.slope} / Rating {c.courseRating}
                 </option>
               ))}
             </select>
-            {selectedCourseId && selectedCourseId !== GENEVA_COURSE.id && (
+            {selectedValue && selectedValue !== GENEVA_COURSE.id && (
               <button
                 onClick={handleDeleteCourse}
                 className="text-xs text-red-400"

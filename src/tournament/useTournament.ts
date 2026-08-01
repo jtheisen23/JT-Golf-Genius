@@ -32,6 +32,8 @@ export function createTournament(input: {
     id: generateId(),
     name: input.name,
     courseName: input.courseName,
+    slope: 132,
+    courseRating: 70,
     date,
     playDay: input.playDay,
     holes: defaultHoles(),
@@ -210,6 +212,9 @@ export function useTournament(eventId: string | null) {
           Tournament,
           | 'name'
           | 'courseName'
+          | 'slope'
+          | 'courseRating'
+          | 'holes'
           | 'date'
           | 'format'
           | 'handicapAllowance'
