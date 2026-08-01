@@ -1,6 +1,13 @@
 import { useState } from 'react';
-import { Player, Match, HoleSetup, HandicapMode } from '../types';
+import { Player, Match, HoleSetup, HandicapMode, Course } from '../types';
 import PlayerIndexInput, { formatHandicap } from './PlayerIndexInput';
+import {
+  getAllCourses,
+  saveCustomCourse,
+  deleteCustomCourse,
+  blankHoles,
+  GENEVA_COURSE,
+} from '../utils/courses';
 
 interface Props {
   players: Player[];
@@ -14,6 +21,7 @@ interface Props {
   onAddPlayer: () => void;
   onRemovePlayer: (id: string) => void;
   onUpdateHole: (holeNum: number, field: keyof HoleSetup, value: number) => void;
+  onSetHoles: (holes: HoleSetup[]) => void;
   onAutoGenerateMatches: () => void;
   onAddMatch: (team1: [string, string], team2: [string, string], rotation: number) => void;
   onRemoveMatch: (matchId: string) => void;
@@ -42,6 +50,7 @@ export default function SetupScreen({
   onAddPlayer,
   onRemovePlayer,
   onUpdateHole,
+  onSetHoles,
   onAutoGenerateMatches,
   onRemoveMatch,
   onSetMatches,
@@ -66,11 +75,92 @@ export default function SetupScreen({
   const [newMatchTeam1, setNewMatchTeam1] = useState<[string, string]>(['', '']);
   const [newMatchTeam2, setNewMatchTeam2] = useState<[string, string]>(['', '']);
 
+  // Course library: Geneva (built-in) + any user-added courses from localStorage.
+  const [courses, setCourses] = useState<Course[]>(() => getAllCourses());
+  const [selectedCourseId, setSelectedCourseId] = useState<string>(() => {
+    const match = getAllCourses().find(
+      (c) => c.name === courseName && c.slope === slope && c.courseRating === courseRating,
+    );
+    return match?.id ?? '';
+  });
+  const [showAddCourse, setShowAddCourse] = useState(false);
+  const [draft, setDraft] = useState<Course>(() => ({
+    id: '',
+    name: '',
+    slope: 113,
+    courseRating: 72,
+    holes: blankHoles(),
+  }));
+
   const canProceedFromPlayers = players.length >= 4 && players.every((p) => p.name.trim());
 
   const totalPar = holes.reduce((sum, h) => sum + h.par, 0);
   const computeHandicap = (index: number, s = slope, r = courseRating, p = totalPar) =>
     Math.round(index * (s / 113) + (r - p));
+
+  // Apply a saved course to the round: name, slope, rating, and per-hole pars,
+  // then recompute every player's course handicap against the new numbers.
+  const applyCourse = (course: Course) => {
+    onSetCourseName(course.name);
+    onSetSlope(course.slope);
+    onSetCourseRating(course.courseRating);
+    onSetHoles(course.holes.map((h) => ({ ...h })));
+    const coursePar = course.holes.reduce((sum, h) => sum + h.par, 0);
+    players.forEach((p) => {
+      onUpdatePlayer(
+        p.id,
+        'handicap',
+        computeHandicap(p.handicapIndex || 0, course.slope, course.courseRating, coursePar),
+      );
+    });
+  };
+
+  const handleSelectCourse = (id: string) => {
+    const course = courses.find((c) => c.id === id);
+    if (!course) return;
+    setSelectedCourseId(id);
+    applyCourse(course);
+  };
+
+  const startAddCourse = () => {
+    setDraft({ id: '', name: '', slope: 113, courseRating: 72, holes: blankHoles() });
+    setShowAddCourse(true);
+  };
+
+  const updateDraftHole = (holeNum: number, field: 'par' | 'handicapRating', value: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      holes: prev.holes.map((h) => (h.number === holeNum ? { ...h, [field]: value } : h)),
+    }));
+  };
+
+  const draftPar = draft.holes.reduce((sum, h) => sum + h.par, 0);
+
+  const handleSaveCourse = () => {
+    const name = draft.name.trim();
+    if (!name) return;
+    const newCourse: Course = {
+      ...draft,
+      name,
+      id: `course-${Date.now()}`,
+    };
+    setCourses(getAllCourses().concat(newCourse));
+    saveCustomCourse(newCourse);
+    setCourses(getAllCourses());
+    setSelectedCourseId(newCourse.id);
+    applyCourse(newCourse);
+    setShowAddCourse(false);
+  };
+
+  const handleDeleteCourse = () => {
+    if (selectedCourseId === GENEVA_COURSE.id || !selectedCourseId) return;
+    const ok = window.confirm('Delete this course? This cannot be undone.');
+    if (!ok) return;
+    deleteCustomCourse(selectedCourseId);
+    setCourses(getAllCourses());
+    setSelectedCourseId(GENEVA_COURSE.id);
+    applyCourse(GENEVA_COURSE);
+  };
 
   const handleAddMatch = () => {
     if (newMatchTeam1[0] && newMatchTeam1[1] && newMatchTeam2[0] && newMatchTeam2[1]) {
@@ -219,6 +309,7 @@ export default function SetupScreen({
                   onChange={(e) => {
                     const newSlope = parseInt(e.target.value) || 113;
                     onSetSlope(newSlope);
+                    setSelectedCourseId('');
                     players.forEach((p) => {
                       onUpdatePlayer(
                         p.id,
@@ -241,6 +332,7 @@ export default function SetupScreen({
                   onChange={(e) => {
                     const newRating = parseFloat(e.target.value) || 72;
                     onSetCourseRating(newRating);
+                    setSelectedCourseId('');
                     players.forEach((p) => {
                       onUpdatePlayer(
                         p.id,
@@ -299,12 +391,146 @@ export default function SetupScreen({
       {/* Course Step */}
       {step === 'course' && (
         <div className="space-y-4">
+          {/* Course picker */}
+          <div className="bg-neutral-900 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-neutral-200">Course</h2>
+              <button
+                onClick={startAddCourse}
+                className="text-sm bg-red-600 text-white px-3 py-1.5 rounded-lg"
+              >
+                + Add Course
+              </button>
+            </div>
+            <select
+              value={selectedCourseId}
+              onChange={(e) => handleSelectCourse(e.target.value)}
+              className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+            >
+              {selectedCourseId === '' && <option value="">Custom (unsaved)</option>}
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — Slope {c.slope} / Rating {c.courseRating}
+                </option>
+              ))}
+            </select>
+            {selectedCourseId && selectedCourseId !== GENEVA_COURSE.id && (
+              <button
+                onClick={handleDeleteCourse}
+                className="text-xs text-red-400"
+              >
+                Delete this course
+              </button>
+            )}
+            <p className="text-xs text-neutral-500">
+              Picking a course fills in its slope, rating and pars below. Geneva Golf Club is the
+              default and can't be removed.
+            </p>
+          </div>
+
+          {/* Add-course form */}
+          {showAddCourse && (
+            <div className="bg-neutral-900 rounded-xl p-4 space-y-3 border border-red-600/40">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-red-400">New Course</h3>
+                <button
+                  onClick={() => setShowAddCourse(false)}
+                  className="text-xs text-neutral-400"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div>
+                <label className="text-xs text-neutral-400 mb-1 block">Course Name</label>
+                <input
+                  type="text"
+                  value={draft.name}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Pebble Beach"
+                  className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Slope</label>
+                  <input
+                    type="number"
+                    value={draft.slope}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, slope: parseInt(e.target.value) || 113 }))
+                    }
+                    min="55"
+                    max="155"
+                    className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-neutral-500 mb-1 block">Rating</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={draft.courseRating}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, courseRating: parseFloat(e.target.value) || 72 }))
+                    }
+                    className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="text-xs text-neutral-400">Par & handicap by hole (par {draftPar})</div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {draft.holes.map((hole) => (
+                  <div key={hole.number} className="bg-neutral-800 rounded-lg p-2 flex items-center gap-3">
+                    <span className="text-red-500 font-bold w-8 text-center">#{hole.number}</span>
+                    <div className="flex-1">
+                      <label className="text-xs text-neutral-500">Par</label>
+                      <select
+                        value={hole.par}
+                        onChange={(e) => updateDraftHole(hole.number, 'par', parseInt(e.target.value))}
+                        className="w-full bg-neutral-900 text-white rounded px-2 py-1 text-sm border border-neutral-700"
+                      >
+                        <option value={3}>3</option>
+                        <option value={4}>4</option>
+                        <option value={5}>5</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-neutral-500">Hdcp</label>
+                      <input
+                        type="number"
+                        value={hole.handicapRating}
+                        onChange={(e) =>
+                          updateDraftHole(hole.number, 'handicapRating', parseInt(e.target.value) || 1)
+                        }
+                        min={1}
+                        max={18}
+                        className="w-full bg-neutral-900 text-white rounded px-2 py-1 text-sm border border-neutral-700 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleSaveCourse}
+                disabled={!draft.name.trim()}
+                className="w-full bg-red-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white py-2.5 rounded-lg font-semibold text-sm"
+              >
+                Save Course
+              </button>
+            </div>
+          )}
+
           <div>
             <label className="text-xs text-neutral-400 mb-1 block">Course Name (optional)</label>
             <input
               type="text"
               value={courseName}
-              onChange={(e) => onSetCourseName(e.target.value)}
+              onChange={(e) => {
+                onSetCourseName(e.target.value);
+                setSelectedCourseId('');
+              }}
               placeholder="Course name"
               className="w-full bg-neutral-800 text-white rounded-lg px-3 py-2 text-sm border border-neutral-700 focus:border-red-500 focus:outline-none"
             />
@@ -321,7 +547,10 @@ export default function SetupScreen({
                   <label className="text-xs text-neutral-500">Par</label>
                   <select
                     value={hole.par}
-                    onChange={(e) => onUpdateHole(hole.number, 'par', parseInt(e.target.value))}
+                    onChange={(e) => {
+                      onUpdateHole(hole.number, 'par', parseInt(e.target.value));
+                      setSelectedCourseId('');
+                    }}
                     className="w-full bg-neutral-800 text-white rounded px-2 py-1 text-sm border border-neutral-700"
                   >
                     <option value={3}>3</option>
@@ -334,9 +563,10 @@ export default function SetupScreen({
                   <input
                     type="number"
                     value={hole.handicapRating}
-                    onChange={(e) =>
-                      onUpdateHole(hole.number, 'handicapRating', parseInt(e.target.value) || 1)
-                    }
+                    onChange={(e) => {
+                      onUpdateHole(hole.number, 'handicapRating', parseInt(e.target.value) || 1);
+                      setSelectedCourseId('');
+                    }}
                     min={1}
                     max={18}
                     className="w-full bg-neutral-800 text-white rounded px-2 py-1 text-sm border border-neutral-700 focus:outline-none"

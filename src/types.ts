@@ -26,6 +26,14 @@ export interface HoleSetup {
   handicapRating: number;
 }
 
+export interface Course {
+  id: string;
+  name: string;
+  slope: number;
+  courseRating: number;
+  holes: HoleSetup[];
+}
+
 export interface Round {
   id: string;
   date: string;

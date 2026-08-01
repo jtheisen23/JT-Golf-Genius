@@ -5,19 +5,13 @@ import { calculateVegasPoints, getNetScore } from '../utils/scoring';
 import { saveRound } from '../utils/storage';
 import { createVegasGame, saveVegasGame, subscribeVegasGame, loadVegasGame, VegasGameState } from './vegasSync';
 import { sync as tournamentSync } from '../tournament/sync';
+import { GENEVA_COURSE } from '../utils/courses';
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
 }
 
-const GENEVA_PARS = [4, 4, 4, 4, 3, 3, 4, 4, 4, 4, 4, 4, 4, 3, 3, 4, 4, 4];
-const GENEVA_HDCPS = [1, 3, 9, 13, 17, 15, 5, 7, 11, 8, 2, 10, 14, 16, 18, 4, 6, 12];
-
-const DEFAULT_HOLES: HoleSetup[] = GENEVA_PARS.map((par, i) => ({
-  number: i + 1,
-  par,
-  handicapRating: GENEVA_HDCPS[i],
-}));
+const DEFAULT_HOLES: HoleSetup[] = GENEVA_COURSE.holes;
 
 const ACTIVE_ROUND_KEY = 'vegas-golf-active-round';
 const ACTIVE_GAME_CODE_KEY = 'vegas-golf-game-code';
@@ -53,11 +47,11 @@ export function useRound() {
   const [matches, setMatches] = useState<Match[]>(saved?.matches || []);
   const [scores, setScores] = useState<Record<string, Record<number, number>>>(saved?.scores || {});
   const [currentHole, setCurrentHole] = useState(saved?.currentHole || 1);
-  const [courseName, setCourseName] = useState(saved?.courseName || 'Geneva Golf Club');
+  const [courseName, setCourseName] = useState(saved?.courseName || GENEVA_COURSE.name);
   const [pointValue, setPointValue] = useState(saved?.pointValue || 0.5);
   const [handicapMode, setHandicapMode] = useState<HandicapMode>(saved?.handicapMode || 'off-the-low');
-  const [slope, setSlope] = useState<number>(saved?.slope || 132);
-  const [courseRating, setCourseRating] = useState<number>(saved?.courseRating || 70);
+  const [slope, setSlope] = useState<number>(saved?.slope || GENEVA_COURSE.slope);
+  const [courseRating, setCourseRating] = useState<number>(saved?.courseRating || GENEVA_COURSE.courseRating);
   const [multipliers, setMultipliers] = useState<Record<string, Record<number, Multiplier>>>(saved?.multipliers || {});
   const [gameCode, setGameCode] = useState<string | null>(loadGameCode);
   // Tournament + group this Vegas game was launched from. When both are set,
@@ -446,6 +440,7 @@ export function useRound() {
     updatePlayer,
     holes,
     updateHole,
+    setHoles,
     matches,
     setMatches,
     autoGenerateMatches,
