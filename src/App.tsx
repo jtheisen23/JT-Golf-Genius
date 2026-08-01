@@ -248,6 +248,7 @@ function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoin
         onAddPlayer={round.addPlayer}
         onRemovePlayer={round.removePlayer}
         onUpdateHole={round.updateHole}
+        onSetHoles={round.setHoles}
         onAutoGenerateMatches={round.autoGenerateMatches}
         onAddMatch={round.addMatch}
         onRemoveMatch={round.removeMatch}
