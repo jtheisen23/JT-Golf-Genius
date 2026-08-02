@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
 import { loadRounds, deleteRound } from '../utils/storage';
+import { computeSeasonPartners } from '../utils/partners';
+import SeasonStats from './SeasonStats';
 import ShareMenu from './ShareMenu';
 import { sync } from '../tournament/sync';
 import type { Tournament } from '../tournament/types';
@@ -41,6 +43,9 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [importStatus, setImportStatus] = useState<Record<string, string>>({});
+  const [view, setView] = useState<'rounds' | 'season'>('rounds');
+
+  const seasonPlayers = useMemo(() => computeSeasonPartners(rounds), [rounds]);
 
   useEffect(() => {
     setRounds(loadRounds());
@@ -129,15 +134,33 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
 
   return (
     <div className="min-h-screen bg-black p-4 pb-24">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <button onClick={onBack} className="text-red-500 text-sm font-medium">
           &lt; Back
         </button>
-        <h1 className="text-xl font-bold text-red-500">Round History</h1>
+        <h1 className="text-xl font-bold text-red-500">
+          {view === 'season' ? 'Partner Stats' : 'Round History'}
+        </h1>
         <div className="w-12" />
       </div>
 
-      {rounds.length === 0 ? (
+      <div className="flex gap-1 mb-5 bg-neutral-900 rounded-lg p-1">
+        {(['rounds', 'season'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+              view === v ? 'bg-red-600 text-white' : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            {v === 'rounds' ? 'Rounds' : 'Partner Stats'}
+          </button>
+        ))}
+      </div>
+
+      {view === 'season' ? (
+        <SeasonStats players={seasonPlayers} roundCount={rounds.length} />
+      ) : rounds.length === 0 ? (
         <div className="text-center text-neutral-500 mt-12">
           <p className="text-lg">No saved rounds yet</p>
           <p className="text-sm mt-2">Finish a round to see it here</p>

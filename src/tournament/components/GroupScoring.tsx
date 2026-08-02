@@ -3,6 +3,8 @@ import type { Tournament } from '../types';
 import { getStrokesOnHole } from '../../utils/handicap';
 import { stablefordPoints, formatToPar } from '../scoring';
 import { formatHandicap } from '../../components/PlayerIndexInput';
+import { tournamentPartnerReport } from '../partnerReport';
+import PartnerReport from '../../components/PartnerReport';
 
 interface Props {
   tournament: Tournament;
@@ -42,6 +44,8 @@ export default function GroupScoring({
   if (!holeSetup) return null;
 
   const groupScores = tournament.scores[groupId] || {};
+  const partnerRows = tournamentPartnerReport(tournament, groupId);
+  const nameFor = (id: string) => tournament.players[id]?.name || '?';
 
   const totals = players.map((p) => {
     const s = groupScores[p.id] || {};
@@ -198,6 +202,12 @@ export default function GroupScoring({
             );
           })}
         </div>
+
+        {partnerRows.length > 0 && (
+          <div className="mt-6">
+            <PartnerReport rows={partnerRows} nameFor={nameFor} accent="emerald" />
+          </div>
+        )}
       </div>
     </div>
   );

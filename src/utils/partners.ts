@@ -17,6 +17,7 @@ export interface PartnerReportRow {
   carried: number; // pairings where this player out-scored (net) their partner
   leaned: number; // pairings where the partner out-scored this player
   overallToPar: number; // player's net to par across every hole they scored
+  overallHoles: number; // holes counted for overallToPar
 }
 
 const outcomeOf = (mine: number, theirs: number): PartnerPairing['outcome'] =>
@@ -54,7 +55,10 @@ export function computePartnerReport(
   };
 
   const rows = new Map<string, PartnerReportRow>(
-    players.map((p) => [p.id, { playerId: p.id, pairings: [], carried: 0, leaned: 0, overallToPar: 0 }]),
+    players.map((p) => [
+      p.id,
+      { playerId: p.id, pairings: [], carried: 0, leaned: 0, overallToPar: 0, overallHoles: 0 },
+    ]),
   );
 
   matches.forEach((match) => {
@@ -99,7 +103,9 @@ export function computePartnerReport(
 
   const allHoleNums = holes.map((h) => h.number);
   rows.forEach((row) => {
-    row.overallToPar = netToPar(row.playerId, allHoleNums).toPar;
+    const overall = netToPar(row.playerId, allHoleNums);
+    row.overallToPar = overall.toPar;
+    row.overallHoles = overall.count;
     row.carried = row.pairings.filter((p) => p.outcome === 'carried').length;
     row.leaned = row.pairings.filter((p) => p.outcome === 'leaned').length;
   });
@@ -111,4 +117,97 @@ export function computePartnerReport(
 export function formatToPar(n: number): string {
   if (n === 0) return 'E';
   return n > 0 ? `+${n}` : `${n}`;
+}
+
+// ---------------------------------------------------------------------------
+// Season aggregate: partner stats rolled up across many saved rounds.
+// Players are matched by name (round IDs are per-round), so "JT" in one round
+// and "JT" in another are the same person.
+// ---------------------------------------------------------------------------
+
+export interface SeasonPartnerLink {
+  partner: string;
+  timesPaired: number;
+  carried: number;
+  leaned: number;
+  even: number;
+  myToPar: number; // this player's net to par across shared holes, summed
+  theirToPar: number;
+}
+
+export interface SeasonPlayer {
+  name: string;
+  rounds: number;
+  carried: number;
+  leaned: number;
+  even: number;
+  netToPar: number;
+  holes: number;
+  partners: SeasonPartnerLink[];
+}
+
+interface SavedRoundLike {
+  players: Player[];
+  matches: Match[];
+  holes: HoleSetup[];
+  scores: Record<string, Record<number, number>>;
+}
+
+const noPoints = () => 0;
+
+export function computeSeasonPartners(rounds: SavedRoundLike[]): SeasonPlayer[] {
+  const byName = new Map<string, SeasonPlayer>();
+
+  for (const round of rounds) {
+    const report = computePartnerReport(
+      round.players ?? [],
+      round.matches ?? [],
+      round.holes ?? [],
+      round.scores ?? {},
+      noPoints,
+    );
+    const nameById = new Map((round.players ?? []).map((p) => [p.id, (p.name || '?').trim()]));
+
+    for (const row of report) {
+      const name = nameById.get(row.playerId) || '?';
+      const key = name.toLowerCase();
+      let sp = byName.get(key);
+      if (!sp) {
+        sp = { name, rounds: 0, carried: 0, leaned: 0, even: 0, netToPar: 0, holes: 0, partners: [] };
+        byName.set(key, sp);
+      }
+      sp.rounds += 1;
+      sp.carried += row.carried;
+      sp.leaned += row.leaned;
+      sp.even += row.pairings.filter((p) => p.outcome === 'even').length;
+      sp.netToPar += row.overallToPar;
+      sp.holes += row.overallHoles;
+
+      for (const pr of row.pairings) {
+        const partnerName = nameById.get(pr.partnerId) || '?';
+        const pKey = partnerName.toLowerCase();
+        let link = sp.partners.find((l) => l.partner.toLowerCase() === pKey);
+        if (!link) {
+          link = { partner: partnerName, timesPaired: 0, carried: 0, leaned: 0, even: 0, myToPar: 0, theirToPar: 0 };
+          sp.partners.push(link);
+        }
+        link.timesPaired += 1;
+        if (pr.outcome === 'carried') link.carried += 1;
+        else if (pr.outcome === 'leaned') link.leaned += 1;
+        else link.even += 1;
+        link.myToPar += pr.playerToPar;
+        link.theirToPar += pr.partnerToPar;
+      }
+    }
+  }
+
+  const players = Array.from(byName.values());
+  players.forEach((p) =>
+    p.partners.sort(
+      (a, b) => b.timesPaired - a.timesPaired || a.myToPar - a.theirToPar - (b.myToPar - b.theirToPar),
+    ),
+  );
+  // Net partner record (carried − leaned) first, then better net scoring.
+  players.sort((a, b) => b.carried - b.leaned - (a.carried - a.leaned) || a.netToPar - b.netToPar);
+  return players;
 }
