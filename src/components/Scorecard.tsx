@@ -169,7 +169,7 @@ export default function Scorecard({ players, holes, scores, courseName, onBack }
         <button onClick={onBack} className="text-red-500 text-sm font-medium">
           &lt; Back
         </button>
-        <h1 className="text-xl font-bold text-red-500">Summary</h1>
+        <h1 className="text-xl font-bold text-red-500">Scorecard</h1>
         <div className="w-12" />
       </div>
 
