@@ -18,6 +18,8 @@ interface Props {
   getMatchResultsForHole: (match: Match, holeNumber: number) => { team1Vegas: number; team2Vegas: number; points: number } | null;
   getMultiplier: (matchId: string, holeNumber: number) => Multiplier;
   getMultiplierValue: (m: Multiplier) => number;
+  /** Read-only summary (e.g. from History): hides the Finish & Save button. */
+  readOnly?: boolean;
 }
 
 export default function Scoreboard({
@@ -34,6 +36,7 @@ export default function Scoreboard({
   getMatchResultsForHole,
   getMultiplier,
   getMultiplierValue,
+  readOnly = false,
 }: Props) {
   // --- Post-round summary calculations ---
 
@@ -411,17 +414,19 @@ export default function Scoreboard({
         />
       </div>
 
-      <button
-        onClick={() => {
-          const ok = window.confirm(
-            'Are you sure you want to finish and save this round? You will return to the tournaments list and can start a new event.'
-          );
-          if (ok) onFinish();
-        }}
-        className="w-full mt-4 bg-red-600 text-white py-3 rounded-xl font-semibold text-lg"
-      >
-        Finish & Save Round
-      </button>
+      {!readOnly && (
+        <button
+          onClick={() => {
+            const ok = window.confirm(
+              'Are you sure you want to finish and save this round? You will return to the tournaments list and can start a new event.'
+            );
+            if (ok) onFinish();
+          }}
+          className="w-full mt-4 bg-red-600 text-white py-3 rounded-xl font-semibold text-lg"
+        >
+          Finish & Save Round
+        </button>
+      )}
     </div>
   );
 }
