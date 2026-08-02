@@ -108,6 +108,39 @@ export default function TournamentSetup({
   );
   const selectedValue = selectedCourseId ?? matchedCourse?.id ?? '';
 
+  // A saved (non-Geneva) library course this tournament came from, matched by
+  // name. Used to offer "save my current edits back to the course".
+  const savedTarget = courses.find(
+    (c) => c.id !== GENEVA_COURSE.id && c.name === tournament.courseName,
+  );
+  const savedTargetDiffers =
+    !!savedTarget &&
+    (savedTarget.slope !== slope ||
+      savedTarget.courseRating !== courseRating ||
+      savedTarget.holes.length !== tournament.holes.length ||
+      tournament.holes.some(
+        (h, i) =>
+          savedTarget.holes[i]?.par !== h.par ||
+          savedTarget.holes[i]?.handicapRating !== h.handicapRating,
+      ));
+
+  const handleUpdateSavedCourse = () => {
+    if (!savedTarget) return;
+    const updated: Course = {
+      id: savedTarget.id,
+      name: tournament.courseName,
+      slope,
+      courseRating,
+      holes: tournament.holes.map((h) => ({
+        number: h.number,
+        par: h.par,
+        handicapRating: h.handicapRating,
+      })),
+    };
+    saveCourse(updated);
+    setSelectedCourseId(savedTarget.id);
+  };
+
   // Apply a saved course: set name, slope, rating and per-hole pars in one meta
   // write, then recompute every player's course handicap against the new numbers.
   const applyCourse = (course: Course) => {
@@ -331,6 +364,15 @@ export default function TournamentSetup({
                 className="text-xs text-red-400"
               >
                 Delete this course
+              </button>
+            )}
+            {savedTargetDiffers && (
+              <button
+                type="button"
+                onClick={handleUpdateSavedCourse}
+                className="w-full text-sm bg-emerald-800 active:bg-emerald-900 text-emerald-100 py-2 rounded font-semibold"
+              >
+                Update saved course "{savedTarget!.name}" with these pars
               </button>
             )}
             {players.length > 0 && (
