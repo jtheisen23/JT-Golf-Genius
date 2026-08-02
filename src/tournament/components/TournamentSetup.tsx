@@ -333,13 +333,39 @@ export default function TournamentSetup({
               </button>
             )}
             {players.length > 0 && (
-              <button
-                type="button"
-                onClick={() => recalcAllHandicaps()}
-                className="w-full text-xs bg-neutral-800 text-neutral-200 py-2 rounded"
-              >
-                Recalculate course handicaps (Slope {slope} / Rating {courseRating} / Par {coursePar})
-              </button>
+              <div className="space-y-2 pt-1">
+                <div className="text-[11px] text-neutral-500">
+                  Course handicaps · Slope {slope} / Rating {courseRating} / Par {coursePar}
+                </div>
+                <div className="space-y-1">
+                  {players.map((p) => {
+                    const preview = recomputeCourseHandicap(p);
+                    const stale = preview !== p.courseHandicap;
+                    return (
+                      <div key={p.id} className="flex items-center justify-between text-xs">
+                        <span className="text-neutral-300">
+                          {p.name || '(no name)'} · idx {formatIndex(p.handicapIndex)}
+                        </span>
+                        <span className={stale ? 'text-amber-400' : 'text-neutral-400'}>
+                          CH {formatHandicap(preview)}
+                          {stale && (
+                            <span className="text-neutral-500">
+                              {' '}(stored {formatHandicap(p.courseHandicap)})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => recalcAllHandicaps()}
+                  className="w-full text-sm bg-emerald-700 active:bg-emerald-800 text-white py-2.5 rounded font-semibold"
+                >
+                  Recalculate course handicaps
+                </button>
+              </div>
             )}
             <p className="text-[11px] text-neutral-500">
               Pick a course to fill in its slope, rating and pars. Geneva Golf Club is the default
