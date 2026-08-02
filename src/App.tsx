@@ -21,7 +21,7 @@ function useHashRoute(): [string, (next: string) => void] {
   return [hash, navigate];
 }
 
-function HomeScreen({ onPickTournament }: { onPickTournament: () => void }) {
+function HomeScreen({ onPickTournament, onPickRounds }: { onPickTournament: () => void; onPickRounds: () => void }) {
   return (
     <div className="min-h-screen bg-black text-neutral-100 flex flex-col items-center justify-center p-6">
       <div className="text-center mb-8">
@@ -33,7 +33,7 @@ function HomeScreen({ onPickTournament }: { onPickTournament: () => void }) {
         <h1 className="text-2xl font-bold">Who's Ready to Gamble</h1>
       </div>
 
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm space-y-3">
         <button
           onClick={onPickTournament}
           className="w-full p-5 bg-emerald-700 rounded-2xl text-left active:bg-emerald-800"
@@ -41,6 +41,15 @@ function HomeScreen({ onPickTournament }: { onPickTournament: () => void }) {
           <div className="font-bold text-lg">Tournament</div>
           <div className="text-sm text-emerald-100/80">
             Multiple groups, live leaderboard, Vegas games, handicaps
+          </div>
+        </button>
+        <button
+          onClick={onPickRounds}
+          className="w-full p-5 bg-red-700 rounded-2xl text-left active:bg-red-800"
+        >
+          <div className="font-bold text-lg">🎲 Past Vegas Rounds</div>
+          <div className="text-sm text-red-100/80">
+            Browse saved rounds and open any Round Summary
           </div>
         </button>
       </div>
@@ -109,10 +118,16 @@ function JoinGameScreen({ onJoin, onBack }: { onJoin: (code: string) => void; on
   );
 }
 
-function VegasApp({ onExit, initialJoinCode }: { onExit: () => void; initialJoinCode?: string }) {
+function VegasApp({ onExit, initialJoinCode, openHistory }: { onExit: () => void; initialJoinCode?: string; openHistory?: boolean }) {
   const round = useRound();
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
+
+  // Opened directly to the round directory (e.g. from Home / tournaments list).
+  const { setScreen } = round;
+  useEffect(() => {
+    if (openHistory) setScreen('history');
+  }, [openHistory, setScreen]);
 
   // Auto-join if we navigated with a join code. Compare against the current
   // gameCode (which may have been restored from localStorage on first render);
@@ -342,6 +357,7 @@ export default function App() {
     // Extract join code from #/vegas/join/{CODE}
     const joinMatch = hash.match(/^#\/vegas\/join\/([A-Za-z0-9]{6})$/);
     const joinCode = joinMatch ? joinMatch[1].toUpperCase() : undefined;
+    const openHistory = hash === '#/vegas/history';
 
     return (
       <>
@@ -351,7 +367,11 @@ export default function App() {
           onLeaderboard={lastTournamentId ? () => navigate(`#/t/${lastTournamentId}/leaderboard`) : undefined}
         />
         <ErrorBoundary>
-          <VegasApp onExit={() => navigate('#/t')} initialJoinCode={joinCode} />
+          <VegasApp
+            onExit={() => navigate(openHistory ? '#/' : '#/t')}
+            initialJoinCode={joinCode}
+            openHistory={openHistory}
+          />
         </ErrorBoundary>
       </>
     );
@@ -371,5 +391,10 @@ export default function App() {
     );
   }
 
-  return <HomeScreen onPickTournament={() => navigate('#/t')} />;
+  return (
+    <HomeScreen
+      onPickTournament={() => navigate('#/t')}
+      onPickRounds={() => navigate('#/vegas/history')}
+    />
+  );
 }
