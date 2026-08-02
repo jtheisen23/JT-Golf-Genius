@@ -157,7 +157,7 @@ export interface SeasonPlayer {
   partners: SeasonPartnerLink[];
 }
 
-interface SavedRoundLike {
+export interface PartnerRoundInput {
   players: Player[];
   matches: Match[];
   holes: HoleSetup[];
@@ -189,7 +189,7 @@ function canonicalName(name: string): string {
   return NAME_ALIASES[trimmed.toLowerCase()] ?? trimmed;
 }
 
-export function computeSeasonPartners(rounds: SavedRoundLike[]): SeasonPlayer[] {
+export function computeSeasonPartners(rounds: PartnerRoundInput[]): SeasonPlayer[] {
   const byName = new Map<string, SeasonPlayer>();
 
   for (const round of rounds) {
