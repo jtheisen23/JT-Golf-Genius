@@ -722,6 +722,15 @@ export default function TournamentSetup({
 
       {tab === 'holes' && (
         <section>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm text-neutral-300">
+              Total par <span className="font-bold text-white">{coursePar}</span>
+            </div>
+            <div className="text-xs text-neutral-500">
+              Front {tournament.holes.slice(0, 9).reduce((s, h) => s + h.par, 0)} · Back{' '}
+              {tournament.holes.slice(9).reduce((s, h) => s + h.par, 0)}
+            </div>
+          </div>
           <div className="grid grid-cols-[40px_1fr_1fr] gap-1 text-xs text-neutral-500 uppercase mb-1 px-1">
             <div>#</div>
             <div>Par</div>
