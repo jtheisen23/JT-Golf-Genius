@@ -340,13 +340,13 @@ export default function HoleEntry({
             onClick={onShowScoreboard}
             className="text-red-500 text-sm font-medium"
           >
-            Scoreboard
+            Round Summary
           </button>
           <button
             onClick={onShowScorecard}
             className="text-red-500 text-sm font-medium"
           >
-            Summary
+            Scorecard
           </button>
         </div>
         <h1 className="text-xl font-bold text-red-500">Hole {currentHole}</h1>
