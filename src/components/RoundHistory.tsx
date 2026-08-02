@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
 import { loadRounds, deleteRound } from '../utils/storage';
 import { computeSeasonPartners } from '../utils/partners';
+import { makeVegasComputers } from '../utils/vegasCompute';
 import SeasonStats from './SeasonStats';
+import Scoreboard from './Scoreboard';
 import ShareMenu from './ShareMenu';
 import { sync } from '../tournament/sync';
 import type { Tournament } from '../tournament/types';
@@ -44,6 +46,7 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [importStatus, setImportStatus] = useState<Record<string, string>>({});
   const [view, setView] = useState<'rounds' | 'season'>('rounds');
+  const [viewingRound, setViewingRound] = useState<SavedRound | null>(null);
 
   const seasonPlayers = useMemo(() => computeSeasonPartners(rounds), [rounds]);
 
@@ -131,6 +134,35 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
       [round.id]: `✓ Imported ${written} scores into ${target.tournament.name} — ${target.groupName}.${vegasRestored ? ' Vegas game restored.' : ''}`,
     }));
   };
+
+  if (viewingRound) {
+    const c = makeVegasComputers({
+      players: viewingRound.players,
+      holes: viewingRound.holes,
+      matches: viewingRound.matches,
+      scores: viewingRound.scores ?? {},
+      multipliers: viewingRound.multipliers,
+      pointValue: viewingRound.pointsPerDollar,
+    });
+    return (
+      <Scoreboard
+        players={viewingRound.players}
+        matches={viewingRound.matches}
+        holes={viewingRound.holes}
+        scores={viewingRound.scores ?? {}}
+        courseName={viewingRound.courseName}
+        pointValue={viewingRound.pointsPerDollar}
+        getMatchTotal={c.getMatchTotal}
+        getPlayerMoney={c.getPlayerMoney}
+        getMatchResultsForHole={c.getMatchResultsForHole}
+        getMultiplier={c.getMultiplier}
+        getMultiplierValue={c.getMultiplierValue}
+        onBack={() => setViewingRound(null)}
+        onFinish={() => setViewingRound(null)}
+        readOnly
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black p-4 pb-24">
@@ -240,6 +272,12 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => setViewingRound(round)}
+                      className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold"
+                    >
+                      📊 View Summary
+                    </button>
                     <button
                       onClick={() => handleEdit(round)}
                       className="bg-neutral-800 border border-neutral-700 text-neutral-200 px-3 py-1.5 rounded-lg text-xs font-semibold"
