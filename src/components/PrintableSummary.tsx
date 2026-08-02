@@ -506,7 +506,7 @@ const PrintableSummary = forwardRef<HTMLDivElement, Props>(({ data }, ref) => {
       )}
 
       {section(
-        'SCORECARD',
+        'SUMMARY',
         <div>
           {renderNine('Front 9', frontNine, 'OUT')}
           {renderNine('Back 9', backNine, 'IN')}

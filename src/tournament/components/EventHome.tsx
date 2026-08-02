@@ -442,7 +442,7 @@ export default function EventHome({
                     onClick={() => onOpenGroup(g.id)}
                     className="text-xs text-emerald-400"
                   >
-                    Scorecard →
+                    Summary →
                   </button>
                 </div>
               </div>
