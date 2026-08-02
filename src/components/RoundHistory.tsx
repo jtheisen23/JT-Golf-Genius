@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
 import { loadRounds, deleteRound } from '../utils/storage';
 import { computeSeasonPartners } from '../utils/partners';
+import { tournamentGroupsAsRounds } from '../tournament/partnerReport';
 import { makeVegasComputers } from '../utils/vegasCompute';
 import SeasonStats from './SeasonStats';
 import Scoreboard from './Scoreboard';
@@ -48,7 +49,21 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   const [view, setView] = useState<'rounds' | 'season'>('rounds');
   const [viewingRound, setViewingRound] = useState<SavedRound | null>(null);
 
-  const seasonPlayers = useMemo(() => computeSeasonPartners(rounds), [rounds]);
+  // Season stats pull from saved Vegas rounds AND tournament groups (same
+  // format). Skip any tournament group already saved as a Vegas round — a Vegas
+  // game launched from a group reuses the group's player IDs — so it's counted
+  // once. Both sources run through the same aggregator + alias consolidation.
+  const seasonPlayers = useMemo(() => {
+    const vegasIdSets = rounds.map((r) => new Set((r.players ?? []).map((p) => p.id)));
+    const alreadySaved = (ids: string[]) => {
+      const set = new Set(ids);
+      return vegasIdSets.some((vs) => vs.size === set.size && [...set].every((id) => vs.has(id)));
+    };
+    const tourRounds = tournamentGroupsAsRounds(tournaments).filter(
+      (tr) => !alreadySaved(tr.players.map((p) => p.id)),
+    );
+    return computeSeasonPartners([...rounds, ...tourRounds]);
+  }, [rounds, tournaments]);
 
   useEffect(() => {
     setRounds(loadRounds());
