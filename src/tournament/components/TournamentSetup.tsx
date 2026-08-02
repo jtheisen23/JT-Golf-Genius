@@ -76,6 +76,14 @@ export default function TournamentSetup({
     par = coursePar,
   ): number => applyAllowance(courseHandicap(p.handicapIndex, s, r, par), tournament.handicapAllowance);
 
+  // Recompute every player's course handicap against the given course numbers.
+  // Called from every course-affecting edit so no player is left on a stale value.
+  const recalcAllHandicaps = (s = slope, r = courseRating, par = coursePar) => {
+    players.forEach((p) =>
+      onUpdatePlayer(p.id, { courseHandicap: recomputeCourseHandicap(p, s, r, par) }),
+    );
+  };
+
   // Course library: Geneva (built-in) + any user-added courses, synced across
   // devices through Firebase.
   const { courses, saveCourse, deleteCourse } = useCourses();
@@ -107,18 +115,14 @@ export default function TournamentSetup({
       par: h.par,
       handicapRating: h.handicapRating,
     }));
+    const par = holes.reduce((sum, h) => sum + h.par, 0);
     onUpdateMeta({
       courseName: course.name,
       slope: course.slope,
       courseRating: course.courseRating,
       holes,
     });
-    const par = course.holes.reduce((sum, h) => sum + h.par, 0);
-    players.forEach((p) => {
-      onUpdatePlayer(p.id, {
-        courseHandicap: recomputeCourseHandicap(p, course.slope, course.courseRating, par),
-      });
-    });
+    recalcAllHandicaps(course.slope, course.courseRating, par);
   };
 
   const handleSelectCourse = (id: string) => {
@@ -299,11 +303,7 @@ export default function TournamentSetup({
                     const newSlope = parseInt(e.target.value) || GENEVA_COURSE.slope;
                     onUpdateMeta({ slope: newSlope });
                     setSelectedCourseId('');
-                    players.forEach((p) =>
-                      onUpdatePlayer(p.id, {
-                        courseHandicap: recomputeCourseHandicap(p, newSlope, courseRating, coursePar),
-                      }),
-                    );
+                    recalcAllHandicaps(newSlope, courseRating, coursePar);
                   }}
                   className="input"
                 />
@@ -317,11 +317,7 @@ export default function TournamentSetup({
                     const newRating = parseFloat(e.target.value) || GENEVA_COURSE.courseRating;
                     onUpdateMeta({ courseRating: newRating });
                     setSelectedCourseId('');
-                    players.forEach((p) =>
-                      onUpdatePlayer(p.id, {
-                        courseHandicap: recomputeCourseHandicap(p, slope, newRating, coursePar),
-                      }),
-                    );
+                    recalcAllHandicaps(slope, newRating, coursePar);
                   }}
                   className="input"
                 />
@@ -334,6 +330,15 @@ export default function TournamentSetup({
                 className="text-xs text-red-400"
               >
                 Delete this course
+              </button>
+            )}
+            {players.length > 0 && (
+              <button
+                type="button"
+                onClick={() => recalcAllHandicaps()}
+                className="w-full text-xs bg-neutral-800 text-neutral-200 py-2 rounded"
+              >
+                Recalculate course handicaps (Slope {slope} / Rating {courseRating} / Par {coursePar})
               </button>
             )}
             <p className="text-[11px] text-neutral-500">
@@ -703,8 +708,12 @@ export default function TournamentSetup({
                   type="number"
                   value={h.par}
                   onChange={(e) => {
-                    onUpdateHole(h.number, { par: Number(e.target.value) });
+                    const newPar = Number(e.target.value);
+                    onUpdateHole(h.number, { par: newPar });
                     setSelectedCourseId('');
+                    // Par change shifts the (rating − par) term, so recompute
+                    // handicaps against the new total par.
+                    recalcAllHandicaps(slope, courseRating, coursePar - h.par + newPar);
                   }}
                   className="input"
                 />
