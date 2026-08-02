@@ -61,6 +61,12 @@ export function computePartnerReport(
     ]),
   );
 
+  // A pair can appear in more than one match of the same rotation — in the
+  // 5-player format the anchor pair plays two opponent teams. That's the same
+  // partnership over the same holes, so record each (player, partner, rotation)
+  // only once.
+  const seen = new Set<string>();
+
   matches.forEach((match) => {
     const start = (match.rotation - 1) * 6 + 1;
     const holeNums = Array.from({ length: 6 }, (_, i) => start + i);
@@ -72,6 +78,11 @@ export function computePartnerReport(
 
     teams.forEach(({ pair, points }) => {
       const [a, b] = pair;
+      const key = `${a}|${b}|${match.rotation}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      seen.add(`${b}|${a}|${match.rotation}`);
+
       // Compare over holes where BOTH partners have a score — apples to apples.
       const shared = new Set<number>();
       holeNums.forEach((hn) => {
