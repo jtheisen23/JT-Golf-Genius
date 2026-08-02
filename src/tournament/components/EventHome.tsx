@@ -16,7 +16,7 @@ interface Props {
   onUpdatePlayer: (id: string, patch: Partial<TourPlayer>) => void;
   onUpdateGroup: (id: string, patch: Partial<TourGroup>) => void;
   onUpdateMeta: (
-    patch: Partial<Pick<Tournament, 'startTime' | 'teeTimeInterval'>>,
+    patch: Partial<Pick<Tournament, 'startTime' | 'teeTimeInterval' | 'handicapMode'>>,
   ) => void;
   onLaunchVegas: (code: string) => void;
   onEditSetup: () => void;
@@ -338,6 +338,35 @@ export default function EventHome({
                   ↶ Undo
                 </button>
               )}
+            </div>
+            <div className="mt-3">
+              <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">
+                Vegas handicap mode
+              </div>
+              <div className="flex gap-1">
+                {([
+                  ['off-the-low', 'Off the Low'],
+                  ['full', 'Full Handicap'],
+                ] as const).map(([mode, label]) => {
+                  const active = (tournament.handicapMode ?? 'off-the-low') === mode;
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => onUpdateMeta({ handicapMode: mode })}
+                      className={`flex-1 py-2 rounded text-sm font-semibold ${
+                        active ? 'bg-emerald-600 text-white' : 'bg-neutral-950 text-neutral-400'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-neutral-500 mt-1">
+                {(tournament.handicapMode ?? 'off-the-low') === 'off-the-low'
+                  ? 'Strokes in each Vegas game are relative to the lowest handicap in the foursome.'
+                  : 'Each player gets their full course-handicap strokes in the Vegas game.'}
+              </p>
             </div>
           </div>
         )}
