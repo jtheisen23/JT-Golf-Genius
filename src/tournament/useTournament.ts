@@ -42,6 +42,7 @@ export function createTournament(input: {
     scores: {},
     format: input.format || 'both',
     handicapAllowance: input.handicapAllowance ?? 100,
+    handicapMode: 'off-the-low',
     startTime: '08:00',
     teeTimeInterval: 12,
     createdAt: now,
@@ -218,6 +219,7 @@ export function useTournament(eventId: string | null) {
           | 'date'
           | 'format'
           | 'handicapAllowance'
+          | 'handicapMode'
           | 'playDay'
           | 'startTime'
           | 'teeTimeInterval'

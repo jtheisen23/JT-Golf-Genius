@@ -22,6 +22,11 @@ export interface TourGroup {
   vegasGameCode?: string; // game code if a Vegas game was launched for this group
 }
 
+import type { HandicapMode } from '../types';
+
+// Re-exported for convenience; the canonical definition lives in ../types.
+export type { HandicapMode };
+
 export type TournamentFormat = 'stroke' | 'stableford' | 'both';
 
 export type PlayDay = 'friday' | 'sunday';
@@ -41,6 +46,9 @@ export interface Tournament {
   scores: Record<string, Record<string, Record<number, number>>>;
   format: TournamentFormat;
   handicapAllowance: number; // 100 = full, 85 = 85%, etc.
+  // How Vegas strokes are allocated when a game is launched from a group:
+  // 'off-the-low' (relative to the lowest handicap) or 'full'. Default off-the-low.
+  handicapMode?: HandicapMode;
   startTime?: string; // first tee time, "HH:MM" (24h), e.g. "08:00"
   teeTimeInterval?: number; // minutes between tee times (default 12)
   createdAt: string;

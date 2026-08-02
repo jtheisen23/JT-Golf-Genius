@@ -378,7 +378,7 @@ export default function EventHome({
               tournament.holes,
               tournament.courseName,
               undefined,
-              undefined,
+              tournament.handicapMode ?? 'off-the-low',
               tournament.id,
               g.id,
             );

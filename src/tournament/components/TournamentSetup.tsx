@@ -32,6 +32,7 @@ interface Props {
         | 'date'
         | 'format'
         | 'handicapAllowance'
+        | 'handicapMode'
         | 'playDay'
         | 'startTime'
         | 'teeTimeInterval'
@@ -516,6 +517,33 @@ export default function TournamentSetup({
               min={0}
               max={100}
             />
+          </Field>
+          <Field label="Vegas handicap mode">
+            <div className="flex gap-1">
+              {([
+                ['off-the-low', 'Off the Low'],
+                ['full', 'Full Handicap'],
+              ] as const).map(([mode, label]) => {
+                const active = (tournament.handicapMode ?? 'off-the-low') === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => onUpdateMeta({ handicapMode: mode })}
+                    className={`flex-1 py-2 rounded text-sm font-semibold ${
+                      active ? 'bg-emerald-600 text-white' : 'bg-neutral-900 text-neutral-400'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-neutral-500 mt-1">
+              {(tournament.handicapMode ?? 'off-the-low') === 'off-the-low'
+                ? 'Strokes in the Vegas game are relative to the lowest handicap.'
+                : 'Each player gets their full handicap strokes in the Vegas game.'}
+            </p>
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="First tee time">
