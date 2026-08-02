@@ -42,7 +42,12 @@ export default function PartnerReport({ rows, nameFor, accent = 'red' }: Props) 
                 .sort((a, b) => a.rotation - b.rotation)
                 .map((pr) => (
                   <div key={pr.partnerId + pr.rotation} className="flex items-center justify-between text-xs">
-                    <span className="text-neutral-300">with {nameFor(pr.partnerId)}</span>
+                    <span className="text-neutral-300">
+                      with {nameFor(pr.partnerId)}
+                      <span className="text-neutral-600">
+                        {' '}· holes {(pr.rotation - 1) * 6 + 1}–{pr.rotation * 6}
+                      </span>
+                    </span>
                     <span className="flex items-center gap-2">
                       <span className="text-neutral-400">
                         {formatToPar(pr.playerToPar)}
