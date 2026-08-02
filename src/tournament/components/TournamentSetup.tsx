@@ -333,41 +333,55 @@ export default function TournamentSetup({
                 Delete this course
               </button>
             )}
-            {players.length > 0 && (
-              <div className="space-y-2 pt-1">
-                <div className="text-[11px] text-neutral-500">
-                  Course handicaps · Slope {slope} / Rating {courseRating} / Par {coursePar}
+            {players.length > 0 && (() => {
+              const mode = tournament.handicapMode ?? 'off-the-low';
+              const rows = players.map((p) => ({ p, ch: recomputeCourseHandicap(p) }));
+              const lowCh = Math.min(...rows.map((r) => r.ch));
+              return (
+                <div className="space-y-2 pt-1">
+                  <div className="text-[11px] text-neutral-500">
+                    Handicaps · Slope {slope} / Rating {courseRating} / Par {coursePar} ·{' '}
+                    {mode === 'off-the-low' ? 'Off the Low' : 'Full'}
+                  </div>
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 text-[10px] text-neutral-500 uppercase">
+                    <span>Player</span>
+                    <span className="text-right">CH</span>
+                    <span className="text-right">Plays</span>
+                  </div>
+                  <div className="space-y-1">
+                    {rows.map(({ p, ch }) => {
+                      const plays = mode === 'full' ? ch : ch - lowCh;
+                      const stale = ch !== p.courseHandicap;
+                      return (
+                        <div key={p.id} className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center text-xs">
+                          <span className="text-neutral-300 truncate">
+                            {p.name || '(no name)'} · idx {formatIndex(p.handicapIndex)}
+                          </span>
+                          <span className={`text-right ${stale ? 'text-amber-400' : 'text-neutral-400'}`}>
+                            {formatHandicap(ch)}
+                          </span>
+                          <span className="text-right text-emerald-300 font-semibold">
+                            {plays}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-neutral-500">
+                    {mode === 'off-the-low'
+                      ? 'Plays = strokes off the lowest handicap. In a Vegas game this is figured within each foursome.'
+                      : 'Plays = full course-handicap strokes.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => recalcAllHandicaps()}
+                    className="w-full text-sm bg-emerald-700 active:bg-emerald-800 text-white py-2.5 rounded font-semibold"
+                  >
+                    Recalculate course handicaps
+                  </button>
                 </div>
-                <div className="space-y-1">
-                  {players.map((p) => {
-                    const preview = recomputeCourseHandicap(p);
-                    const stale = preview !== p.courseHandicap;
-                    return (
-                      <div key={p.id} className="flex items-center justify-between text-xs">
-                        <span className="text-neutral-300">
-                          {p.name || '(no name)'} · idx {formatIndex(p.handicapIndex)}
-                        </span>
-                        <span className={stale ? 'text-amber-400' : 'text-neutral-400'}>
-                          CH {formatHandicap(preview)}
-                          {stale && (
-                            <span className="text-neutral-500">
-                              {' '}(stored {formatHandicap(p.courseHandicap)})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => recalcAllHandicaps()}
-                  className="w-full text-sm bg-emerald-700 active:bg-emerald-800 text-white py-2.5 rounded font-semibold"
-                >
-                  Recalculate course handicaps
-                </button>
-              </div>
-            )}
+              );
+            })()}
             <p className="text-[11px] text-neutral-500">
               Pick a course to fill in its slope, rating and pars. Geneva Golf Club is the default
               and can't be removed. Edit pars on the Holes tab.
