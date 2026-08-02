@@ -346,7 +346,7 @@ export default function HoleEntry({
             onClick={onShowScorecard}
             className="text-red-500 text-sm font-medium"
           >
-            Card
+            Summary
           </button>
         </div>
         <h1 className="text-xl font-bold text-red-500">Hole {currentHole}</h1>
