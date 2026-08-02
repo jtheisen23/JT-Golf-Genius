@@ -166,6 +166,29 @@ interface SavedRoundLike {
 
 const noPoints = () => 0;
 
+// Same guy, different name across rounds — fold aliases into one canonical
+// display name for the season roll-up. Keys are lowercase; add pairs here as
+// new aliases come up.
+const NAME_ALIASES: Record<string, string> = {
+  mclovin: 'Mcquillen',
+  mcquillen: 'Mcquillen',
+  leeroy: 'Lee',
+  lee: 'Lee',
+  jr: 'Junior',
+  junior: 'Junior',
+  sr: 'Senior',
+  senior: 'Senior',
+  johnny: 'Johnny C',
+  'johnny c': 'Johnny C',
+  shawntay: 'Sean',
+  sean: 'Sean',
+};
+
+function canonicalName(name: string): string {
+  const trimmed = (name || '?').trim();
+  return NAME_ALIASES[trimmed.toLowerCase()] ?? trimmed;
+}
+
 export function computeSeasonPartners(rounds: SavedRoundLike[]): SeasonPlayer[] {
   const byName = new Map<string, SeasonPlayer>();
 
@@ -177,7 +200,7 @@ export function computeSeasonPartners(rounds: SavedRoundLike[]): SeasonPlayer[] 
       round.scores ?? {},
       noPoints,
     );
-    const nameById = new Map((round.players ?? []).map((p) => [p.id, (p.name || '?').trim()]));
+    const nameById = new Map((round.players ?? []).map((p) => [p.id, canonicalName(p.name)]));
 
     for (const row of report) {
       const name = nameById.get(row.playerId) || '?';
