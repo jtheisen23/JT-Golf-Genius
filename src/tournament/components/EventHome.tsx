@@ -49,11 +49,16 @@ export default function EventHome({
   // on display via recomputeCh below; tee-time fields fall back to defaults
   // at the input level (08:00 / 12 min).
 
-  const recomputeCh = (p: TourPlayer): number =>
-    applyAllowance(
-      courseHandicap(p.handicapIndex, 132, 70, 68),
-      tournament.handicapAllowance,
-    );
+  // Course numbers for course-handicap math. Fall back to Geneva's values for
+  // tournaments created before slope/rating were stored.
+  const chSlope = tournament.slope ?? 132;
+  const chRating = tournament.courseRating ?? 70;
+  const chPar = tournament.holes.reduce((sum, h) => sum + h.par, 0);
+
+  const courseHandicapFor = (index: number): number =>
+    applyAllowance(courseHandicap(index, chSlope, chRating, chPar), tournament.handicapAllowance);
+
+  const recomputeCh = (p: TourPlayer): number => courseHandicapFor(p.handicapIndex);
 
   const registered = Object.values(tournament.players);
   const handleRandomize = () => {
@@ -262,10 +267,7 @@ export default function EventHome({
                 <button
                   onClick={() => {
                     const idx = parseIndex(editIndex);
-                    const ch = applyAllowance(
-                      courseHandicap(idx, 132, 70, 68),
-                      tournament.handicapAllowance,
-                    );
+                    const ch = courseHandicapFor(idx);
                     onUpdatePlayer(editingPlayer.id, {
                       name: editName.trim() || editingPlayer.name,
                       handicapIndex: idx,

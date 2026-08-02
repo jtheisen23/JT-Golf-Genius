@@ -27,13 +27,21 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
 
   const players = Object.values(tournament.players);
 
+  // Course numbers for course-handicap math; fall back to Geneva's values for
+  // tournaments created before slope/rating were stored.
+  const chSlope = tournament.slope ?? 132;
+  const chRating = tournament.courseRating ?? 70;
+  const chPar = tournament.holes.reduce((sum, h) => sum + h.par, 0);
+  const courseHandicapFor = (idx: number): number =>
+    applyAllowance(courseHandicap(idx, chSlope, chRating, chPar), tournament.handicapAllowance);
+
   const handleSubmit = () => {
     if (!name.trim()) {
       setStatus({ type: 'err', message: 'Enter your name' });
       return;
     }
     const idx = parseIndex(index);
-    const ch = applyAllowance(courseHandicap(idx, 132, 70, 68), tournament.handicapAllowance);
+    const ch = courseHandicapFor(idx);
     onAddPlayer({
       id: generateId(),
       name: name.trim(),
@@ -189,10 +197,7 @@ export default function Registration({ tournament, onAddPlayer, onUpdatePlayer, 
               <button
                 onClick={() => {
                   const idx = parseIndex(editIndex);
-                  const ch = applyAllowance(
-                    courseHandicap(idx, 132, 70, 68),
-                    tournament.handicapAllowance,
-                  );
+                  const ch = courseHandicapFor(idx);
                   onUpdatePlayer(editingPlayer.id, {
                     name: editName.trim() || editingPlayer.name,
                     handicapIndex: idx,
