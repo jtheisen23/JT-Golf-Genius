@@ -39,8 +39,15 @@ export default function SeasonStats({ players, roundCount }: Props) {
       (a, b) =>
         b.carriedPct - a.carriedPct || b.decided - a.decided || a.p.netToPar - b.p.netToPar,
     );
-  const best = ranked[0];
-  const liability = withRates
+  // Best/worst headlines need a real track record — require a minimum number of
+  // decided pairings, falling back to everyone if nobody clears the bar yet.
+  const MIN_DECIDED = 4;
+  const qualified = withRates.filter((r) => r.decided >= MIN_DECIDED);
+  const pool = qualified.length > 0 ? qualified : withRates;
+  const best = pool
+    .slice()
+    .sort((a, b) => b.carriedPct - a.carriedPct || b.decided - a.decided || a.p.netToPar - b.p.netToPar)[0];
+  const liability = pool
     .slice()
     .sort((a, b) => b.leanedPct - a.leanedPct || b.decided - a.decided)[0];
 
@@ -49,7 +56,8 @@ export default function SeasonStats({ players, roundCount }: Props) {
       <p className="text-[11px] text-neutral-500">
         Across {roundCount} round{roundCount === 1 ? '' : 's'}. Players matched by name.
         <span className="text-emerald-400"> Carried</span> = out-scored their partner (net);
-        <span className="text-orange-400"> Leaned</span> = partner carried them. Ranked by rate.
+        <span className="text-orange-400"> Leaned</span> = partner carried them. Ranked by rate;
+        Best/Worst need {qualified.length > 0 ? `${MIN_DECIDED}+` : 'at least a few'} decided pairings.
       </p>
 
       <div className="grid grid-cols-2 gap-2">
