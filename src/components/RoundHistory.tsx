@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
 import { loadRounds, deleteRound, fetchCloudRounds, saveRoundCloud } from '../utils/storage';
-import { computeSeasonPartners, computeSeasonMoney, computeSeasonScoring } from '../utils/partners';
+import {
+  computeSeasonPartners,
+  computeSeasonMoney,
+  computeSeasonScoring,
+  computeBirdieMoneyShare,
+} from '../utils/partners';
 import { tournamentGroupsAsRounds, tournamentGroupSavedRound } from '../tournament/partnerReport';
 import { makeVegasComputers } from '../utils/vegasCompute';
 import SeasonStats from './SeasonStats';
@@ -98,6 +103,11 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
 
   const seasonScoring = useMemo(
     () => computeSeasonScoring(allRounds.map((r) => r.round)),
+    [allRounds],
+  );
+
+  const birdieShare = useMemo(
+    () => computeBirdieMoneyShare(allRounds.map((r) => r.round)),
     [allRounds],
   );
 
@@ -264,6 +274,7 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
           players={seasonPlayers}
           money={seasonMoney}
           scoring={seasonScoring}
+          birdieShare={birdieShare}
           roundCount={allRounds.length}
         />
       ) : allRounds.length === 0 ? (

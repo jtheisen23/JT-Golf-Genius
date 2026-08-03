@@ -359,6 +359,57 @@ export function computeSeasonMoney(rounds: MoneyRoundInput[]): SeasonMoney[] {
 }
 
 // ---------------------------------------------------------------------------
+// Birdie money share: of all the money that swung, what fraction moved on
+// holes where someone made a gross birdie (or better) — the Vegas flip trigger.
+// ---------------------------------------------------------------------------
+
+export interface BirdieMoneyShare {
+  birdieMoney: number; // money that moved on gross-birdie holes
+  totalMoney: number; // total money that moved (both directions counted once)
+  pct: number;
+}
+
+export function computeBirdieMoneyShare(rounds: MoneyRoundInput[]): BirdieMoneyShare {
+  let birdieMoney = 0;
+  let totalMoney = 0;
+
+  for (const round of rounds) {
+    const parByHole = new Map((round.holes ?? []).map((h) => [h.number, h.par]));
+    const { getMatchResultsForHole, getMultiplier, getMultiplierValue } = makeVegasComputers({
+      players: round.players ?? [],
+      holes: round.holes ?? [],
+      matches: round.matches ?? [],
+      scores: round.scores ?? {},
+      multipliers: round.multipliers,
+      pointValue: round.pointsPerDollar,
+    });
+
+    const grossBirdieOnHole = (match: Match, hole: number) => {
+      const par = parByHole.get(hole);
+      if (par == null) return false;
+      return [...match.team1, ...match.team2].some((pid) => {
+        const g = round.scores?.[pid]?.[hole];
+        return g != null && g <= par - 1;
+      });
+    };
+
+    for (const match of round.matches ?? []) {
+      const start = (match.rotation - 1) * 6 + 1;
+      for (let hole = start; hole < start + 6; hole++) {
+        const result = getMatchResultsForHole(match, hole);
+        if (!result) continue;
+        const mult = getMultiplierValue(getMultiplier(match.id, hole));
+        const money = Math.abs(result.points * mult) * round.pointsPerDollar;
+        totalMoney += money;
+        if (grossBirdieOnHole(match, hole)) birdieMoney += money;
+      }
+    }
+  }
+
+  return { birdieMoney, totalMoney, pct: totalMoney > 0 ? (birdieMoney / totalMoney) * 100 : 0 };
+}
+
+// ---------------------------------------------------------------------------
 // Season scoring: gross pars and birdies per player across all rounds.
 // ---------------------------------------------------------------------------
 
