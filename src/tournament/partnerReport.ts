@@ -2,15 +2,25 @@ import type { Player, Match, HoleSetup, SavedRound } from '../types';
 import type { Tournament, TourGroup } from './types';
 import { computePartnerReport, type PartnerReportRow, type PartnerRoundInput } from '../utils/partners';
 
-// Standard 3-rotation partnerships for a 4-player group (holes 1-6 / 7-12 / 13-18).
-function standardMatches(ids: string[]): Match[] {
-  if (ids.length !== 4) return [];
-  const [a, b, c, d] = ids;
-  return [
-    { id: 'r1', team1: [a, b], team2: [c, d], rotation: 1 },
-    { id: 'r2', team1: [a, c], team2: [b, d], rotation: 2 },
-    { id: 'r3', team1: [a, d], team2: [b, c], rotation: 3 },
+// Rotation partnerships for a 4- or 5-player group, matching the Vegas
+// auto-generator (holes 1-6 / 7-12 / 13-18). For 5 players the anchor pair
+// plays a second opponent team each rotation so the 5th rotates in.
+function generateMatches(ids: string[]): Match[] {
+  if (ids.length < 4 || ids.length > 5) return [];
+  const p = ids;
+  const matches: Match[] = [
+    { id: 'r1', team1: [p[0], p[1]], team2: [p[2], p[3]], rotation: 1 },
+    { id: 'r2', team1: [p[0], p[2]], team2: [p[1], p[3]], rotation: 2 },
+    { id: 'r3', team1: [p[0], p[3]], team2: [p[1], p[2]], rotation: 3 },
   ];
+  if (ids.length === 5) {
+    matches.push(
+      { id: 'r1b', team1: [p[0], p[1]], team2: [p[4], p[2]], rotation: 1 },
+      { id: 'r2b', team1: [p[0], p[2]], team2: [p[4], p[3]], rotation: 2 },
+      { id: 'r3b', team1: [p[0], p[3]], team2: [p[4], p[1]], rotation: 3 },
+    );
+  }
+  return matches;
 }
 
 /**
@@ -21,7 +31,7 @@ function standardMatches(ids: string[]): Match[] {
  */
 export function groupRoundInput(tournament: Tournament, groupId: string): PartnerRoundInput | null {
   const group = tournament.groups.find((g) => g.id === groupId);
-  if (!group || group.playerIds.length !== 4) return null;
+  if (!group || group.playerIds.length < 4 || group.playerIds.length > 5) return null;
 
   const players: Player[] = group.playerIds
     .map((id) => tournament.players[id])
@@ -33,7 +43,7 @@ export function groupRoundInput(tournament: Tournament, groupId: string): Partne
       handicap: p.courseHandicap,
       strokesReceived: p.courseHandicap,
     }));
-  if (players.length !== 4) return null;
+  if (players.length < 4 || players.length > 5) return null;
 
   const holes: HoleSetup[] = tournament.holes.map((h) => ({
     number: h.number,
@@ -41,7 +51,12 @@ export function groupRoundInput(tournament: Tournament, groupId: string): Partne
     handicapRating: h.handicapRating,
   }));
 
-  return { players, matches: standardMatches(group.playerIds), holes, scores: tournament.scores[groupId] ?? {} };
+  return {
+    players,
+    matches: generateMatches(players.map((p) => p.id)),
+    holes,
+    scores: tournament.scores[groupId] ?? {},
+  };
 }
 
 /** Partner report for a single tournament group (4-player groups only). */
