@@ -5,6 +5,8 @@ export interface PartnerPairing {
   partnerId: string;
   rotation: number;
   holesPlayed: number;
+  holesWon: number; // holes where this player had the lower net (hole-by-hole)
+  holesLost: number; // holes where the partner had the lower net
   playerToPar: number; // this player's net score to par over the holes they shared
   partnerToPar: number; // the partner's net to par over the same holes
   teamPoints: number; // team's net Vegas points for the rotation, from this player's side
@@ -14,14 +16,16 @@ export interface PartnerPairing {
 export interface PartnerReportRow {
   playerId: string;
   pairings: PartnerPairing[];
-  carried: number; // pairings where this player out-scored (net) their partner
-  leaned: number; // pairings where the partner out-scored this player
+  carried: number; // pairings where this player won more holes than their partner
+  leaned: number; // pairings where the partner won more holes
+  holesWon: number; // total holes out-scored across all pairings
+  holesLost: number; // total holes the partner out-scored
   overallToPar: number; // player's net to par across every hole they scored
   overallHoles: number; // holes counted for overallToPar
 }
 
 const outcomeOf = (mine: number, theirs: number): PartnerPairing['outcome'] =>
-  mine < theirs ? 'carried' : mine > theirs ? 'leaned' : 'even';
+  mine > theirs ? 'carried' : mine < theirs ? 'leaned' : 'even';
 
 /**
  * Partner report: for each player, how they scored (net to par) alongside each
@@ -54,10 +58,36 @@ export function computePartnerReport(
     return { toPar, count };
   };
 
+  // Hole-by-hole net comparison for a pair over their shared holes — who had the
+  // lower net on each hole. This is the Vegas view: each hole its own contest,
+  // immune to a single blow-up. Returns wins for `a` (losses = wins for `b`).
+  const holeWins = (a: string, b: string, shared: Set<number>) => {
+    let aWon = 0;
+    let bWon = 0;
+    shared.forEach((hn) => {
+      const hole = holeByNum.get(hn);
+      if (!hole) return;
+      const na = getNetScore(scores[a][hn], strokes.get(a) ?? 0, hole.handicapRating);
+      const nb = getNetScore(scores[b][hn], strokes.get(b) ?? 0, hole.handicapRating);
+      if (na < nb) aWon++;
+      else if (nb < na) bWon++;
+    });
+    return { aWon, bWon };
+  };
+
   const rows = new Map<string, PartnerReportRow>(
     players.map((p) => [
       p.id,
-      { playerId: p.id, pairings: [], carried: 0, leaned: 0, overallToPar: 0, overallHoles: 0 },
+      {
+        playerId: p.id,
+        pairings: [],
+        carried: 0,
+        leaned: 0,
+        holesWon: 0,
+        holesLost: 0,
+        overallToPar: 0,
+        overallHoles: 0,
+      },
     ]),
   );
 
@@ -90,24 +120,29 @@ export function computePartnerReport(
       });
       const aStat = netToPar(a, holeNums, shared);
       const bStat = netToPar(b, holeNums, shared);
+      const { aWon, bWon } = holeWins(a, b, shared);
 
       rows.get(a)?.pairings.push({
         partnerId: b,
         rotation: match.rotation,
         holesPlayed: aStat.count,
+        holesWon: aWon,
+        holesLost: bWon,
         playerToPar: aStat.toPar,
         partnerToPar: bStat.toPar,
         teamPoints: points,
-        outcome: outcomeOf(aStat.toPar, bStat.toPar),
+        outcome: outcomeOf(aWon, bWon),
       });
       rows.get(b)?.pairings.push({
         partnerId: a,
         rotation: match.rotation,
         holesPlayed: bStat.count,
+        holesWon: bWon,
+        holesLost: aWon,
         playerToPar: bStat.toPar,
         partnerToPar: aStat.toPar,
         teamPoints: -points,
-        outcome: outcomeOf(bStat.toPar, aStat.toPar),
+        outcome: outcomeOf(bWon, aWon),
       });
     });
   });
@@ -119,6 +154,8 @@ export function computePartnerReport(
     row.overallHoles = overall.count;
     row.carried = row.pairings.filter((p) => p.outcome === 'carried').length;
     row.leaned = row.pairings.filter((p) => p.outcome === 'leaned').length;
+    row.holesWon = row.pairings.reduce((s, p) => s + p.holesWon, 0);
+    row.holesLost = row.pairings.reduce((s, p) => s + p.holesLost, 0);
   });
 
   // Only players who actually played at least one shared hole.

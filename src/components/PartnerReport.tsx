@@ -21,8 +21,9 @@ export default function PartnerReport({ rows, nameFor, accent = 'red' }: Props) 
         Partner Report
       </h3>
       <p className="text-[11px] text-neutral-500 mb-2">
-        Net score vs. par next to each partner. <span className="text-emerald-400">Carried</span> = you
-        out-scored your partner; <span className="text-orange-400">Leaned</span> = they carried you.
+        Holes won vs. your partner (better net, hole by hole).{' '}
+        <span className="text-emerald-400">Carried</span> = you won more holes;{' '}
+        <span className="text-orange-400">Leaned</span> = they won more.
       </p>
       <div className="space-y-2">
         {rows.map((row) => (
@@ -49,11 +50,10 @@ export default function PartnerReport({ rows, nameFor, accent = 'red' }: Props) 
                       </span>
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="text-neutral-400">
-                        {formatToPar(pr.playerToPar)}
-                        <span className="text-neutral-600"> vs </span>
-                        {formatToPar(pr.partnerToPar)}
+                      <span className="text-neutral-300">
+                        won {pr.holesWon}-{pr.holesLost}
                       </span>
+                      <span className="text-neutral-600">({formatToPar(pr.playerToPar)} net)</span>
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                           pr.outcome === 'carried'

@@ -55,8 +55,8 @@ export default function SeasonStats({ players, roundCount }: Props) {
     <div className="space-y-3">
       <p className="text-[11px] text-neutral-500">
         Across {roundCount} round{roundCount === 1 ? '' : 's'}. Players matched by name.
-        <span className="text-emerald-400"> Carried</span> = out-scored their partner (net);
-        <span className="text-orange-400"> Leaned</span> = partner carried them. Ranked by rate;
+        <span className="text-emerald-400"> Carried</span> = won more holes than their partner;
+        <span className="text-orange-400"> Leaned</span> = partner won more. Ranked by rate;
         Best/Worst need {qualified.length > 0 ? `${MIN_DECIDED}+` : 'at least a few'} decided pairings.
       </p>
 
