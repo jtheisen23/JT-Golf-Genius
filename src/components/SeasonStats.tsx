@@ -1,9 +1,10 @@
-import { SeasonPlayer, SeasonMoney, SeasonScoring, formatToPar } from '../utils/partners';
+import { SeasonPlayer, SeasonMoney, SeasonScoring, BirdieMoneyShare, formatToPar } from '../utils/partners';
 
 interface Props {
   players: SeasonPlayer[];
   money: SeasonMoney[];
   scoring: SeasonScoring[];
+  birdieShare: BirdieMoneyShare;
   roundCount: number;
 }
 
@@ -15,7 +16,7 @@ const fmtAvg = (n: number) => (Math.round(n * 10) === 0 ? 'E' : `${n > 0 ? '+' :
  * matched by player name. Shows who is the best partner overall and who
  * tends to lean on their partners.
  */
-export default function SeasonStats({ players, money: moneyRows, scoring, roundCount }: Props) {
+export default function SeasonStats({ players, money: moneyRows, scoring, birdieShare, roundCount }: Props) {
   const anyEagles = scoring.some((s) => s.eagles > 0);
   if (players.length === 0 && moneyRows.length === 0 && scoring.length === 0) {
     return (
@@ -59,6 +60,16 @@ export default function SeasonStats({ players, money: moneyRows, scoring, roundC
 
   return (
     <div className="space-y-3">
+      {birdieShare.totalMoney > 0 && (
+        <div className="bg-emerald-950/40 border border-emerald-800/50 rounded-lg p-3">
+          <div className="text-[10px] uppercase tracking-wide text-emerald-400">Birdie-driven money</div>
+          <div className="text-white text-xl font-bold">{Math.round(birdieShare.pct)}%</div>
+          <div className="text-[11px] text-neutral-400">
+            of the {fmtMoney(birdieShare.totalMoney)} that swung moved on holes with a gross birdie.
+          </div>
+        </div>
+      )}
+
       {moneyRows.length > 0 && (
         <div>
           <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
