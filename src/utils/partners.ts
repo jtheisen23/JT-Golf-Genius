@@ -355,3 +355,67 @@ export function computeSeasonMoney(rounds: MoneyRoundInput[]): SeasonMoney[] {
 
   return Array.from(byName.values()).sort((a, b) => b.net - a.net);
 }
+
+// ---------------------------------------------------------------------------
+// Season scoring: gross pars and birdies per player across all rounds.
+// ---------------------------------------------------------------------------
+
+export interface SeasonScoring {
+  name: string;
+  pars: number;
+  birdies: number;
+  eagles: number; // gross eagle or better (par − 2 or lower)
+  rounds: number;
+}
+
+interface ScoringRoundInput {
+  players: Player[];
+  holes: HoleSetup[];
+  scores: Record<string, Record<number, number>>;
+}
+
+export function computeSeasonScoring(rounds: ScoringRoundInput[]): SeasonScoring[] {
+  const byName = new Map<string, SeasonScoring>();
+
+  for (const round of rounds) {
+    const parByHole = new Map((round.holes ?? []).map((h) => [h.number, h.par]));
+    const countedThisRound = new Set<string>();
+
+    for (const p of round.players ?? []) {
+      const holeScores = round.scores?.[p.id] ?? {};
+      let pars = 0;
+      let birdies = 0;
+      let eagles = 0;
+      let played = 0;
+      for (const [holeStr, gross] of Object.entries(holeScores)) {
+        const par = parByHole.get(Number(holeStr));
+        if (par == null || gross == null) continue;
+        played++;
+        if (gross === par) pars++;
+        else if (gross === par - 1) birdies++;
+        else if (gross <= par - 2) eagles++;
+      }
+      if (played === 0) continue;
+
+      const name = canonicalName(p.name);
+      const key = name.toLowerCase();
+      let sc = byName.get(key);
+      if (!sc) {
+        sc = { name, pars: 0, birdies: 0, eagles: 0, rounds: 0 };
+        byName.set(key, sc);
+      }
+      sc.pars += pars;
+      sc.birdies += birdies;
+      sc.eagles += eagles;
+      if (!countedThisRound.has(key)) {
+        sc.rounds += 1;
+        countedThisRound.add(key);
+      }
+    }
+  }
+
+  // Most birdies first (tiebreak: eagles, then pars).
+  return Array.from(byName.values()).sort(
+    (a, b) => b.birdies - a.birdies || b.eagles - a.eagles || b.pars - a.pars,
+  );
+}
