@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
-import { loadRounds, deleteRound } from '../utils/storage';
+import { loadRounds, deleteRound, fetchCloudRounds, saveRoundCloud } from '../utils/storage';
 import { computeSeasonPartners, computeSeasonMoney, computeSeasonScoring } from '../utils/partners';
 import { tournamentGroupsAsRounds, tournamentGroupSavedRound } from '../tournament/partnerReport';
 import { makeVegasComputers } from '../utils/vegasCompute';
@@ -102,15 +102,33 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   );
 
   useEffect(() => {
-    setRounds(loadRounds());
+    const local = loadRounds();
+    setRounds(local);
     sync.fetchAll().then(setTournaments).catch(() => {});
+    // Merge the shared cloud history in, and backfill any local-only rounds up
+    // to the cloud so they reach other devices.
+    fetchCloudRounds()
+      .then((cloud) => {
+        const cloudIds = new Set(cloud.map((r) => r.id));
+        local.forEach((r) => {
+          if (!cloudIds.has(r.id)) saveRoundCloud(r);
+        });
+        setRounds((prev) => {
+          const byId = new Map(prev.map((r) => [r.id, r]));
+          cloud.forEach((r) => {
+            if (!byId.has(r.id)) byId.set(r.id, r);
+          });
+          return Array.from(byId.values());
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const handleDelete = (id: string) => {
     const ok = window.confirm('Delete this round? This cannot be undone.');
     if (!ok) return;
     deleteRound(id);
-    setRounds(loadRounds());
+    setRounds((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleEdit = (round: SavedRound) => {
