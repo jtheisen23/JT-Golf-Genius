@@ -222,6 +222,8 @@ const NAME_ALIASES: Record<string, string> = {
   sean: 'Sean',
   g: 'Grant',
   grant: 'Grant',
+  mitch: 'Mitchell',
+  mitchell: 'Mitchell',
 };
 
 function canonicalName(name: string): string {
