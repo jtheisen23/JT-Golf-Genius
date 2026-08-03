@@ -1,5 +1,5 @@
-import type { Player, Match, HoleSetup } from '../types';
-import type { Tournament } from './types';
+import type { Player, Match, HoleSetup, SavedRound } from '../types';
+import type { Tournament, TourGroup } from './types';
 import { computePartnerReport, type PartnerReportRow, type PartnerRoundInput } from '../utils/partners';
 
 // Standard 3-rotation partnerships for a 4-player group (holes 1-6 / 7-12 / 13-18).
@@ -60,4 +60,33 @@ export function tournamentGroupsAsRounds(tournaments: Tournament[]): PartnerRoun
     }
   }
   return rounds;
+}
+
+function hasAnyScore(scores: Record<string, Record<number, number>>): boolean {
+  return Object.values(scores).some((holes) => Object.keys(holes).length > 0);
+}
+
+/**
+ * A tournament group presented as a Vegas SavedRound so it can appear in the
+ * combined Past Rounds directory and open the read-only Round Summary. Returns
+ * null for non-4-player groups or groups with no scores entered. No real Vegas
+ * stake exists on the tournament side, so the point value defaults to 0.50.
+ */
+export function tournamentGroupSavedRound(t: Tournament, group: TourGroup): SavedRound | null {
+  const input = groupRoundInput(t, group.id);
+  if (!input || !hasAnyScore(input.scores)) return null;
+  return {
+    id: `t-${t.id}-${group.id}`,
+    date: t.date,
+    courseName: `${t.courseName} — ${group.name}`,
+    players: input.players,
+    holes: input.holes,
+    matches: input.matches,
+    scores: input.scores,
+    pointsPerDollar: 0.5,
+    slope: t.slope,
+    courseRating: t.courseRating,
+    results: [],
+    multipliers: {},
+  };
 }
