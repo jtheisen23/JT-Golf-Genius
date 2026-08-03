@@ -4,7 +4,8 @@ interface Props {
   players: SeasonPlayer[];
   money: SeasonMoney[];
   scoring: SeasonScoring[];
-  birdieShare: BirdieMoneyShare;
+  birdieShareFull: BirdieMoneyShare;
+  birdieShareLow: BirdieMoneyShare;
   roundCount: number;
 }
 
@@ -16,7 +17,14 @@ const fmtAvg = (n: number) => (Math.round(n * 10) === 0 ? 'E' : `${n > 0 ? '+' :
  * matched by player name. Shows who is the best partner overall and who
  * tends to lean on their partners.
  */
-export default function SeasonStats({ players, money: moneyRows, scoring, birdieShare, roundCount }: Props) {
+export default function SeasonStats({
+  players,
+  money: moneyRows,
+  scoring,
+  birdieShareFull,
+  birdieShareLow,
+  roundCount,
+}: Props) {
   const anyEagles = scoring.some((s) => s.eagles > 0);
   if (players.length === 0 && moneyRows.length === 0 && scoring.length === 0) {
     return (
@@ -60,13 +68,30 @@ export default function SeasonStats({ players, money: moneyRows, scoring, birdie
 
   return (
     <div className="space-y-3">
-      {birdieShare.totalMoney > 0 && (
-        <div className="bg-emerald-950/40 border border-emerald-800/50 rounded-lg p-3">
-          <div className="text-[10px] uppercase tracking-wide text-emerald-400">Birdie-driven money</div>
-          <div className="text-white text-xl font-bold">{Math.round(birdieShare.pct)}%</div>
-          <div className="text-[11px] text-neutral-400">
-            of the {fmtMoney(birdieShare.totalMoney)} that swung moved on holes with a gross birdie.
+      {(birdieShareFull.totalMoney > 0 || birdieShareLow.totalMoney > 0) && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-emerald-400 mb-1">
+            Birdie-driven money
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-emerald-950/40 border border-emerald-800/50 rounded-lg p-3">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">Full handicap</div>
+              <div className="text-white text-xl font-bold">{Math.round(birdieShareFull.pct)}%</div>
+              <div className="text-[11px] text-neutral-400">
+                of {fmtMoney(birdieShareFull.totalMoney)} moved
+              </div>
+            </div>
+            <div className="bg-emerald-950/40 border border-emerald-800/50 rounded-lg p-3">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">Off the low</div>
+              <div className="text-white text-xl font-bold">{Math.round(birdieShareLow.pct)}%</div>
+              <div className="text-[11px] text-neutral-400">
+                of {fmtMoney(birdieShareLow.totalMoney)} moved
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-neutral-500 mt-1">
+            Share of money that swung on holes with a gross birdie, scored each way.
+          </p>
         </div>
       )}
 
