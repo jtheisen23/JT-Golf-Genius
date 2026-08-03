@@ -20,44 +20,65 @@ export default function SeasonStats({ players, roundCount }: Props) {
     );
   }
 
-  const best = players[0];
-  const liability = players.slice().sort((a, b) => b.leaned - a.leaned)[0];
+  // Rank by rate, not raw counts, so a guy who plays more doesn't win by volume.
+  // Carried/leaned % is out of decided pairings (excludes ties).
+  const pct = (n: number, total: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
+  const withRates = players.map((p) => {
+    const decided = p.carried + p.leaned;
+    return {
+      p,
+      decided,
+      carriedPct: pct(p.carried, decided),
+      leanedPct: pct(p.leaned, decided),
+    };
+  });
+  // Highest carried% (tiebreak: more decided pairings, then better net).
+  const ranked = withRates
+    .slice()
+    .sort(
+      (a, b) =>
+        b.carriedPct - a.carriedPct || b.decided - a.decided || a.p.netToPar - b.p.netToPar,
+    );
+  const best = ranked[0];
+  const liability = withRates
+    .slice()
+    .sort((a, b) => b.leanedPct - a.leanedPct || b.decided - a.decided)[0];
 
   return (
     <div className="space-y-3">
       <p className="text-[11px] text-neutral-500">
-        Across {roundCount} saved round{roundCount === 1 ? '' : 's'}. Players matched by name.
+        Across {roundCount} round{roundCount === 1 ? '' : 's'}. Players matched by name.
         <span className="text-emerald-400"> Carried</span> = out-scored their partner (net);
-        <span className="text-orange-400"> Leaned</span> = partner carried them.
+        <span className="text-orange-400"> Leaned</span> = partner carried them. Ranked by rate.
       </p>
 
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-emerald-950/40 border border-emerald-800/50 rounded-lg p-3">
           <div className="text-[10px] uppercase tracking-wide text-emerald-400">Best partner</div>
-          <div className="text-white font-semibold">{best.name}</div>
+          <div className="text-white font-semibold">{best.p.name}</div>
           <div className="text-[11px] text-neutral-400">
-            Carried {best.carried} · Leaned {best.leaned}
+            Carried {best.carriedPct}% ({best.p.carried}/{best.decided})
           </div>
         </div>
         <div className="bg-orange-950/40 border border-orange-800/50 rounded-lg p-3">
           <div className="text-[10px] uppercase tracking-wide text-orange-400">Leans the most</div>
-          <div className="text-white font-semibold">{liability.name}</div>
+          <div className="text-white font-semibold">{liability.p.name}</div>
           <div className="text-[11px] text-neutral-400">
-            Leaned {liability.leaned} · Carried {liability.carried}
+            Leaned {liability.leanedPct}% ({liability.p.leaned}/{liability.decided})
           </div>
         </div>
       </div>
 
       <div className="space-y-2">
-        {players.map((p) => {
+        {ranked.map(({ p, carriedPct }) => {
           const perRound = p.rounds > 0 ? Math.round(p.netToPar / p.rounds) : 0;
           return (
             <div key={p.name} className="bg-neutral-900 rounded-lg px-3 py-2.5">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-white text-sm font-semibold">{p.name}</span>
                 <span className="text-[11px] text-neutral-400">
-                  {p.rounds} rd · <span className="text-emerald-400">C {p.carried}</span>{' '}
-                  <span className="text-orange-400">L {p.leaned}</span> ·{' '}
+                  {p.rounds} rd · <span className="text-emerald-400">{carriedPct}% carried</span>
+                  <span className="text-neutral-600"> ({p.carried}-{p.leaned})</span> ·{' '}
                   {formatToPar(perRound)}/rd
                 </span>
               </div>
