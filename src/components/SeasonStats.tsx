@@ -8,6 +8,7 @@ interface Props {
 }
 
 const fmtMoney = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toFixed(2)}`;
+const fmtAvg = (n: number) => (Math.round(n * 10) === 0 ? 'E' : `${n > 0 ? '+' : ''}${n.toFixed(1)}`);
 
 /**
  * Season-long partner stats aggregated across every saved Vegas round,
@@ -98,21 +99,23 @@ export default function SeasonStats({ players, money: moneyRows, scoring, roundC
             Scoring — so far (gross)
           </h3>
           <div
-            className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto]'} gap-x-4 text-[10px] text-neutral-500 uppercase px-3 mb-1`}
+            className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto_auto]'} gap-x-3 text-[10px] text-neutral-500 uppercase px-3 mb-1`}
           >
             <span>Player</span>
+            <span className="text-right">Avg</span>
             <span className="text-right">Pars</span>
-            <span className="text-right">Birdies</span>
-            {anyEagles && <span className="text-right">Eagles</span>}
+            <span className="text-right">Birds</span>
+            {anyEagles && <span className="text-right">Eag</span>}
             <span className="text-right">Agn</span>
           </div>
           <div className="space-y-1">
             {scoring.map((s) => (
               <div
                 key={s.name}
-                className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto]'} gap-x-4 items-center bg-neutral-900 rounded-lg px-3 py-2 text-sm`}
+                className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto_auto]'} gap-x-3 items-center bg-neutral-900 rounded-lg px-3 py-2 text-sm`}
               >
                 <span className="text-white font-medium truncate">{s.name}</span>
+                <span className="text-right text-neutral-200 font-semibold">{fmtAvg(s.avgToPar)}</span>
                 <span className="text-right text-neutral-300">{s.pars}</span>
                 <span className="text-right text-emerald-400 font-semibold">{s.birdies}</span>
                 {anyEagles && <span className="text-right text-yellow-400 font-semibold">{s.eagles}</span>}
@@ -121,7 +124,7 @@ export default function SeasonStats({ players, money: moneyRows, scoring, roundC
             ))}
           </div>
           <p className="text-[10px] text-neutral-500 mt-1">
-            Agn = gross birdies opponents made against you.
+            Avg = scoring average to par per 18 · Agn = birdies opponents made against you.
           </p>
         </div>
       )}

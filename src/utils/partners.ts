@@ -366,6 +366,9 @@ export interface SeasonScoring {
   birdies: number;
   eagles: number; // gross eagle or better (par − 2 or lower)
   birdiesAgainst: number; // gross birdies opponents made against this player
+  holes: number; // gross holes scored (for the average)
+  toParSum: number; // running sum of (gross − par) over scored holes
+  avgToPar: number; // average gross score to par per 18 holes
   rounds: number;
 }
 
@@ -408,10 +411,12 @@ export function computeSeasonScoring(rounds: ScoringRoundInput[]): SeasonScoring
       let birdies = 0;
       let eagles = 0;
       let played = 0;
+      let toPar = 0;
       for (const [holeStr, gross] of Object.entries(holeScores)) {
         const par = parByHole.get(Number(holeStr));
         if (par == null || gross == null) continue;
         played++;
+        toPar += gross - par;
         if (gross === par) pars++;
         else if (gross === par - 1) birdies++;
         else if (gross <= par - 2) eagles++;
@@ -422,13 +427,15 @@ export function computeSeasonScoring(rounds: ScoringRoundInput[]): SeasonScoring
       const key = name.toLowerCase();
       let sc = byName.get(key);
       if (!sc) {
-        sc = { name, pars: 0, birdies: 0, eagles: 0, birdiesAgainst: 0, rounds: 0 };
+        sc = { name, pars: 0, birdies: 0, eagles: 0, birdiesAgainst: 0, holes: 0, toParSum: 0, avgToPar: 0, rounds: 0 };
         byName.set(key, sc);
       }
       sc.pars += pars;
       sc.birdies += birdies;
       sc.eagles += eagles;
       sc.birdiesAgainst += againstById.get(p.id) ?? 0;
+      sc.holes += played;
+      sc.toParSum += toPar;
       if (!countedThisRound.has(key)) {
         sc.rounds += 1;
         countedThisRound.add(key);
@@ -436,8 +443,11 @@ export function computeSeasonScoring(rounds: ScoringRoundInput[]): SeasonScoring
     }
   }
 
+  const list = Array.from(byName.values());
+  // Scoring average to par, normalized to 18 holes so partial rounds compare.
+  list.forEach((s) => {
+    s.avgToPar = s.holes > 0 ? (s.toParSum / s.holes) * 18 : 0;
+  });
   // Most birdies first (tiebreak: eagles, then pars).
-  return Array.from(byName.values()).sort(
-    (a, b) => b.birdies - a.birdies || b.eagles - a.eagles || b.pars - a.pars,
-  );
+  return list.sort((a, b) => b.birdies - a.birdies || b.eagles - a.eagles || b.pars - a.pars);
 }
