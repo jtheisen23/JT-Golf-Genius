@@ -41,7 +41,7 @@ export default function SeasonStats({ players, roundCount }: Props) {
     );
   // Best/worst headlines need a real track record — require a minimum number of
   // decided pairings, falling back to everyone if nobody clears the bar yet.
-  const MIN_DECIDED = 4;
+  const MIN_DECIDED = 10;
   const qualified = withRates.filter((r) => r.decided >= MIN_DECIDED);
   const pool = qualified.length > 0 ? qualified : withRates;
   const best = pool
