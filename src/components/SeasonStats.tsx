@@ -1,17 +1,20 @@
-import { SeasonPlayer, formatToPar } from '../utils/partners';
+import { SeasonPlayer, SeasonMoney, formatToPar } from '../utils/partners';
 
 interface Props {
   players: SeasonPlayer[];
+  money: SeasonMoney[];
   roundCount: number;
 }
+
+const fmtMoney = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toFixed(2)}`;
 
 /**
  * Season-long partner stats aggregated across every saved Vegas round,
  * matched by player name. Shows who is the best partner overall and who
  * tends to lean on their partners.
  */
-export default function SeasonStats({ players, roundCount }: Props) {
-  if (players.length === 0) {
+export default function SeasonStats({ players, money: moneyRows, roundCount }: Props) {
+  if (players.length === 0 && moneyRows.length === 0) {
     return (
       <div className="text-center text-neutral-500 mt-10">
         <p className="text-sm">No partner data yet.</p>
@@ -53,6 +56,42 @@ export default function SeasonStats({ players, roundCount }: Props) {
 
   return (
     <div className="space-y-3">
+      {moneyRows.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
+            Money — so far
+          </h3>
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-[10px] text-neutral-500 uppercase px-3 mb-1">
+            <span>Player</span>
+            <span className="text-right">Won</span>
+            <span className="text-right">Lost</span>
+            <span className="text-right">Net</span>
+          </div>
+          <div className="space-y-1">
+            {moneyRows.map((m) => (
+              <div
+                key={m.name}
+                className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center bg-neutral-900 rounded-lg px-3 py-2 text-sm"
+              >
+                <span className="text-white font-medium truncate">{m.name}</span>
+                <span className="text-right text-emerald-400">+{fmtMoney(m.won)}</span>
+                <span className="text-right text-orange-400">-{fmtMoney(m.lost)}</span>
+                <span
+                  className={`text-right font-semibold ${
+                    m.net > 0 ? 'text-emerald-300' : m.net < 0 ? 'text-orange-300' : 'text-neutral-300'
+                  }`}
+                >
+                  {m.net > 0 ? '+' : ''}
+                  {fmtMoney(m.net)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {players.length > 0 && (
+        <>
       <p className="text-[11px] text-neutral-500">
         Across {roundCount} round{roundCount === 1 ? '' : 's'}. Players matched by name.
         <span className="text-emerald-400"> Carried</span> = won more holes than their partner;
@@ -119,6 +158,8 @@ export default function SeasonStats({ players, roundCount }: Props) {
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 }
