@@ -98,26 +98,31 @@ export default function SeasonStats({ players, money: moneyRows, scoring, roundC
             Scoring — so far (gross)
           </h3>
           <div
-            className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'} gap-x-4 text-[10px] text-neutral-500 uppercase px-3 mb-1`}
+            className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto]'} gap-x-4 text-[10px] text-neutral-500 uppercase px-3 mb-1`}
           >
             <span>Player</span>
             <span className="text-right">Pars</span>
             <span className="text-right">Birdies</span>
             {anyEagles && <span className="text-right">Eagles</span>}
+            <span className="text-right">Agn</span>
           </div>
           <div className="space-y-1">
             {scoring.map((s) => (
               <div
                 key={s.name}
-                className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'} gap-x-4 items-center bg-neutral-900 rounded-lg px-3 py-2 text-sm`}
+                className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto_auto]'} gap-x-4 items-center bg-neutral-900 rounded-lg px-3 py-2 text-sm`}
               >
                 <span className="text-white font-medium truncate">{s.name}</span>
                 <span className="text-right text-neutral-300">{s.pars}</span>
                 <span className="text-right text-emerald-400 font-semibold">{s.birdies}</span>
                 {anyEagles && <span className="text-right text-yellow-400 font-semibold">{s.eagles}</span>}
+                <span className="text-right text-orange-400">{s.birdiesAgainst}</span>
               </div>
             ))}
           </div>
+          <p className="text-[10px] text-neutral-500 mt-1">
+            Agn = gross birdies opponents made against you.
+          </p>
         </div>
       )}
 

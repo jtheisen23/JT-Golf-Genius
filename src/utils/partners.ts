@@ -365,12 +365,14 @@ export interface SeasonScoring {
   pars: number;
   birdies: number;
   eagles: number; // gross eagle or better (par − 2 or lower)
+  birdiesAgainst: number; // gross birdies opponents made against this player
   rounds: number;
 }
 
 interface ScoringRoundInput {
   players: Player[];
   holes: HoleSetup[];
+  matches: Match[];
   scores: Record<string, Record<number, number>>;
 }
 
@@ -379,8 +381,27 @@ export function computeSeasonScoring(rounds: ScoringRoundInput[]): SeasonScoring
 
   for (const round of rounds) {
     const parByHole = new Map((round.holes ?? []).map((h) => [h.number, h.par]));
-    const countedThisRound = new Set<string>();
+    const isBirdie = (playerId: string, hole: number) => {
+      const gross = round.scores?.[playerId]?.[hole];
+      const par = parByHole.get(hole);
+      return gross != null && par != null && gross === par - 1;
+    };
 
+    // Birdies opponents made against each player, tallied per match.
+    const againstById = new Map<string, number>();
+    for (const match of round.matches ?? []) {
+      const start = (match.rotation - 1) * 6 + 1;
+      let team1Birdies = 0;
+      let team2Birdies = 0;
+      for (let hole = start; hole < start + 6; hole++) {
+        for (const pid of match.team1) if (isBirdie(pid, hole)) team1Birdies++;
+        for (const pid of match.team2) if (isBirdie(pid, hole)) team2Birdies++;
+      }
+      for (const pid of match.team1) againstById.set(pid, (againstById.get(pid) ?? 0) + team2Birdies);
+      for (const pid of match.team2) againstById.set(pid, (againstById.get(pid) ?? 0) + team1Birdies);
+    }
+
+    const countedThisRound = new Set<string>();
     for (const p of round.players ?? []) {
       const holeScores = round.scores?.[p.id] ?? {};
       let pars = 0;
@@ -401,12 +422,13 @@ export function computeSeasonScoring(rounds: ScoringRoundInput[]): SeasonScoring
       const key = name.toLowerCase();
       let sc = byName.get(key);
       if (!sc) {
-        sc = { name, pars: 0, birdies: 0, eagles: 0, rounds: 0 };
+        sc = { name, pars: 0, birdies: 0, eagles: 0, birdiesAgainst: 0, rounds: 0 };
         byName.set(key, sc);
       }
       sc.pars += pars;
       sc.birdies += birdies;
       sc.eagles += eagles;
+      sc.birdiesAgainst += againstById.get(p.id) ?? 0;
       if (!countedThisRound.has(key)) {
         sc.rounds += 1;
         countedThisRound.add(key);
