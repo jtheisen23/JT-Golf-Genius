@@ -47,9 +47,9 @@ function HomeScreen({ onPickTournament, onPickRounds }: { onPickTournament: () =
           onClick={onPickRounds}
           className="w-full p-5 bg-red-700 rounded-2xl text-left active:bg-red-800"
         >
-          <div className="font-bold text-lg">🎲 Past Vegas Rounds</div>
+          <div className="font-bold text-lg">🎲 Past Rounds</div>
           <div className="text-sm text-red-100/80">
-            Browse saved rounds and open any Round Summary
+            Vegas &amp; tournament rounds — open any Round Summary
           </div>
         </button>
       </div>

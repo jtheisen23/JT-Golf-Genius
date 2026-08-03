@@ -120,7 +120,7 @@ export default function EventsList({
           onClick={onOpenRounds}
           className="py-2.5 bg-neutral-900 border border-neutral-700 rounded-xl text-sm font-semibold text-red-400 active:bg-neutral-800"
         >
-          🎲 Past Vegas Rounds
+          🎲 Past Rounds
         </button>
       </div>
 

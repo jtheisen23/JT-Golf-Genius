@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
 import { loadRounds, deleteRound } from '../utils/storage';
 import { computeSeasonPartners } from '../utils/partners';
-import { tournamentGroupsAsRounds } from '../tournament/partnerReport';
+import { tournamentGroupsAsRounds, tournamentGroupSavedRound } from '../tournament/partnerReport';
 import { makeVegasComputers } from '../utils/vegasCompute';
 import SeasonStats from './SeasonStats';
 import Scoreboard from './Scoreboard';
@@ -49,21 +49,46 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   const [view, setView] = useState<'rounds' | 'season'>('rounds');
   const [viewingRound, setViewingRound] = useState<SavedRound | null>(null);
 
-  // Season stats pull from saved Vegas rounds AND tournament groups (same
-  // format). Skip any tournament group already saved as a Vegas round — a Vegas
-  // game launched from a group reuses the group's player IDs — so it's counted
-  // once. Both sources run through the same aggregator + alias consolidation.
-  const seasonPlayers = useMemo(() => {
+  // A Vegas game launched from a tournament group reuses the group's player IDs,
+  // so the same round can exist in both places. Detect that to count each once.
+  const alreadySavedAsVegas = useMemo(() => {
     const vegasIdSets = rounds.map((r) => new Set((r.players ?? []).map((p) => p.id)));
-    const alreadySaved = (ids: string[]) => {
+    return (ids: string[]) => {
       const set = new Set(ids);
       return vegasIdSets.some((vs) => vs.size === set.size && [...set].every((id) => vs.has(id)));
     };
-    const tourRounds = tournamentGroupsAsRounds(tournaments).filter(
-      (tr) => !alreadySaved(tr.players.map((p) => p.id)),
+  }, [rounds]);
+
+  // Tournament groups (same game, different day) presented as rounds, minus any
+  // already saved as a Vegas round.
+  const tournamentRounds = useMemo(() => {
+    const out: SavedRound[] = [];
+    for (const t of tournaments) {
+      for (const g of t.groups) {
+        const sr = tournamentGroupSavedRound(t, g);
+        if (sr && !alreadySavedAsVegas(sr.players.map((p) => p.id))) out.push(sr);
+      }
+    }
+    return out;
+  }, [tournaments, alreadySavedAsVegas]);
+
+  // Combined directory: saved Vegas rounds + tournament rounds, newest first.
+  const allRounds = useMemo(
+    () =>
+      [
+        ...rounds.map((r) => ({ round: r, source: 'vegas' as const })),
+        ...tournamentRounds.map((r) => ({ round: r, source: 'tournament' as const })),
+      ].sort((a, b) => new Date(b.round.date).getTime() - new Date(a.round.date).getTime()),
+    [rounds, tournamentRounds],
+  );
+
+  // Season stats run through the same aggregator + alias consolidation.
+  const seasonPlayers = useMemo(() => {
+    const tourInputs = tournamentGroupsAsRounds(tournaments).filter(
+      (tr) => !alreadySavedAsVegas(tr.players.map((p) => p.id)),
     );
-    return computeSeasonPartners([...rounds, ...tourRounds]);
-  }, [rounds, tournaments]);
+    return computeSeasonPartners([...rounds, ...tourInputs]);
+  }, [rounds, tournaments, alreadySavedAsVegas]);
 
   useEffect(() => {
     setRounds(loadRounds());
@@ -186,7 +211,7 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
           &lt; Back
         </button>
         <h1 className="text-xl font-bold text-red-500">
-          {view === 'season' ? 'Partner Stats' : 'Round History'}
+          {view === 'season' ? 'Partner Stats' : 'Past Rounds'}
         </h1>
         <div className="w-12" />
       </div>
@@ -206,16 +231,17 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
       </div>
 
       {view === 'season' ? (
-        <SeasonStats players={seasonPlayers} roundCount={rounds.length} />
-      ) : rounds.length === 0 ? (
+        <SeasonStats players={seasonPlayers} roundCount={allRounds.length} />
+      ) : allRounds.length === 0 ? (
         <div className="text-center text-neutral-500 mt-12">
-          <p className="text-lg">No saved rounds yet</p>
-          <p className="text-sm mt-2">Finish a round to see it here</p>
+          <p className="text-lg">No rounds yet</p>
+          <p className="text-sm mt-2">Finish a Vegas round or a tournament to see it here</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {rounds.map((round) => {
-            const matchCount = findMatchingGroups(round, tournaments).length;
+          {allRounds.map(({ round, source }) => {
+            const isTournament = source === 'tournament';
+            const matchCount = isTournament ? 0 : findMatchingGroups(round, tournaments).length;
             return (
             <div key={round.id} className="bg-neutral-900 rounded-xl overflow-hidden">
               <button
@@ -224,7 +250,14 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-white font-medium">
+                    <div className="text-white font-medium flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                          isTournament ? 'bg-emerald-800 text-emerald-100' : 'bg-red-800 text-red-100'
+                        }`}
+                      >
+                        {isTournament ? 'Tournament' : 'Vegas'}
+                      </span>
                       {round.courseName || 'Unnamed Course'}
                     </div>
                     <div className="text-xs text-neutral-500">
@@ -240,12 +273,6 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
                   <div className="text-xs text-neutral-500 mb-2">
                     Players: {(round.players ?? []).map((p) => p.name).join(', ')}
                   </div>
-
-                  {(round.results ?? []).length === 0 && (
-                    <div className="text-xs text-neutral-500 italic mb-2">
-                      No match results recorded for this round.
-                    </div>
-                  )}
 
                   {(round.results ?? []).map((result) => (
                     <div key={result.matchId} className="bg-neutral-800 rounded-lg p-3 mb-2">
@@ -271,20 +298,22 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
                     </div>
                   ))}
 
-                  <div className="mt-3">
-                    <ShareMenu
-                      data={{
-                        courseName: round.courseName,
-                        date: round.date,
-                        players: round.players,
-                        holes: round.holes,
-                        matches: round.matches,
-                        scores: round.scores,
-                        results: round.results,
-                        pointValue: round.pointsPerDollar,
-                      }}
-                    />
-                  </div>
+                  {!isTournament && (
+                    <div className="mt-3">
+                      <ShareMenu
+                        data={{
+                          courseName: round.courseName,
+                          date: round.date,
+                          players: round.players,
+                          holes: round.holes,
+                          matches: round.matches,
+                          scores: round.scores,
+                          results: round.results,
+                          pointValue: round.pointsPerDollar,
+                        }}
+                      />
+                    </div>
+                  )}
 
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <button
@@ -293,26 +322,33 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
                     >
                       📊 View Summary
                     </button>
-                    <button
-                      onClick={() => handleEdit(round)}
-                      className="bg-neutral-800 border border-neutral-700 text-neutral-200 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                    >
-                      ✏️ Edit Round
-                    </button>
-                    {matchCount > 0 && (
-                      <button
-                        onClick={() => handleImport(round)}
-                        className="bg-emerald-700 text-emerald-50 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                      >
-                        📥 Import to Tournament
-                      </button>
+                    {!isTournament && (
+                      <>
+                        <button
+                          onClick={() => handleEdit(round)}
+                          className="bg-neutral-800 border border-neutral-700 text-neutral-200 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                        >
+                          ✏️ Edit Round
+                        </button>
+                        {matchCount > 0 && (
+                          <button
+                            onClick={() => handleImport(round)}
+                            className="bg-emerald-700 text-emerald-50 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                          >
+                            📥 Import to Tournament
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDelete(round.id)}
+                          className="text-red-400 text-xs ml-auto"
+                        >
+                          Delete Round
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={() => handleDelete(round.id)}
-                      className="text-red-400 text-xs ml-auto"
-                    >
-                      Delete Round
-                    </button>
+                    {isTournament && (
+                      <span className="text-[11px] text-neutral-500 ml-auto">From tournament</span>
+                    )}
                   </div>
 
                   {importStatus[round.id] && (
