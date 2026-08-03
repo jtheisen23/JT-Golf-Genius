@@ -1,8 +1,9 @@
-import { SeasonPlayer, SeasonMoney, formatToPar } from '../utils/partners';
+import { SeasonPlayer, SeasonMoney, SeasonScoring, formatToPar } from '../utils/partners';
 
 interface Props {
   players: SeasonPlayer[];
   money: SeasonMoney[];
+  scoring: SeasonScoring[];
   roundCount: number;
 }
 
@@ -13,8 +14,9 @@ const fmtMoney = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toFixed(2)}`;
  * matched by player name. Shows who is the best partner overall and who
  * tends to lean on their partners.
  */
-export default function SeasonStats({ players, money: moneyRows, roundCount }: Props) {
-  if (players.length === 0 && moneyRows.length === 0) {
+export default function SeasonStats({ players, money: moneyRows, scoring, roundCount }: Props) {
+  const anyEagles = scoring.some((s) => s.eagles > 0);
+  if (players.length === 0 && moneyRows.length === 0 && scoring.length === 0) {
     return (
       <div className="text-center text-neutral-500 mt-10">
         <p className="text-sm">No partner data yet.</p>
@@ -84,6 +86,35 @@ export default function SeasonStats({ players, money: moneyRows, roundCount }: P
                   {m.net > 0 ? '+' : ''}
                   {fmtMoney(m.net)}
                 </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {scoring.length > 0 && (
+        <div>
+          <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-2">
+            Scoring — so far (gross)
+          </h3>
+          <div
+            className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'} gap-x-4 text-[10px] text-neutral-500 uppercase px-3 mb-1`}
+          >
+            <span>Player</span>
+            <span className="text-right">Pars</span>
+            <span className="text-right">Birdies</span>
+            {anyEagles && <span className="text-right">Eagles</span>}
+          </div>
+          <div className="space-y-1">
+            {scoring.map((s) => (
+              <div
+                key={s.name}
+                className={`grid ${anyEagles ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'} gap-x-4 items-center bg-neutral-900 rounded-lg px-3 py-2 text-sm`}
+              >
+                <span className="text-white font-medium truncate">{s.name}</span>
+                <span className="text-right text-neutral-300">{s.pars}</span>
+                <span className="text-right text-emerald-400 font-semibold">{s.birdies}</span>
+                {anyEagles && <span className="text-right text-yellow-400 font-semibold">{s.eagles}</span>}
               </div>
             ))}
           </div>

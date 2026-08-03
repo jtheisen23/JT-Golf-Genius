@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
 import { loadRounds, deleteRound } from '../utils/storage';
-import { computeSeasonPartners, computeSeasonMoney } from '../utils/partners';
+import { computeSeasonPartners, computeSeasonMoney, computeSeasonScoring } from '../utils/partners';
 import { tournamentGroupsAsRounds, tournamentGroupSavedRound } from '../tournament/partnerReport';
 import { makeVegasComputers } from '../utils/vegasCompute';
 import SeasonStats from './SeasonStats';
@@ -93,6 +93,11 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   // Cumulative money won/lost per player across every round (deduped, aliased).
   const seasonMoney = useMemo(
     () => computeSeasonMoney(allRounds.map((r) => r.round)),
+    [allRounds],
+  );
+
+  const seasonScoring = useMemo(
+    () => computeSeasonScoring(allRounds.map((r) => r.round)),
     [allRounds],
   );
 
@@ -237,7 +242,12 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
       </div>
 
       {view === 'season' ? (
-        <SeasonStats players={seasonPlayers} money={seasonMoney} roundCount={allRounds.length} />
+        <SeasonStats
+          players={seasonPlayers}
+          money={seasonMoney}
+          scoring={seasonScoring}
+          roundCount={allRounds.length}
+        />
       ) : allRounds.length === 0 ? (
         <div className="text-center text-neutral-500 mt-12">
           <p className="text-lg">No rounds yet</p>
