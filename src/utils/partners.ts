@@ -1,5 +1,6 @@
-import { Player, Match, HoleSetup } from '../types';
+import { Player, Match, HoleSetup, Multiplier } from '../types';
 import { getNetScore } from './scoring';
+import { makeVegasComputers } from './vegasCompute';
 
 export interface PartnerPairing {
   partnerId: string;
@@ -283,4 +284,74 @@ export function computeSeasonPartners(rounds: PartnerRoundInput[]): SeasonPlayer
   // Net partner record (carried − leaned) first, then better net scoring.
   players.sort((a, b) => b.carried - b.leaned - (a.carried - a.leaned) || a.netToPar - b.netToPar);
   return players;
+}
+
+// ---------------------------------------------------------------------------
+// Season money: cumulative money won and lost per player across all rounds.
+// Money is tallied per match (each match is a bet won or lost).
+// ---------------------------------------------------------------------------
+
+export interface SeasonMoney {
+  name: string;
+  won: number; // gross money won across all matches
+  lost: number; // gross money lost (positive number)
+  net: number; // won − lost
+  rounds: number;
+}
+
+interface MoneyRoundInput {
+  players: Player[];
+  holes: HoleSetup[];
+  matches: Match[];
+  scores: Record<string, Record<number, number>>;
+  multipliers?: Record<string, Record<number, Multiplier>>;
+  pointsPerDollar: number;
+}
+
+export function computeSeasonMoney(rounds: MoneyRoundInput[]): SeasonMoney[] {
+  const byName = new Map<string, SeasonMoney>();
+
+  for (const round of rounds) {
+    const { getMatchTotal } = makeVegasComputers({
+      players: round.players ?? [],
+      holes: round.holes ?? [],
+      matches: round.matches ?? [],
+      scores: round.scores ?? {},
+      multipliers: round.multipliers,
+      pointValue: round.pointsPerDollar,
+    });
+    const totals = new Map((round.matches ?? []).map((m) => [m.id, getMatchTotal(m)]));
+    const countedThisRound = new Set<string>();
+
+    for (const p of round.players ?? []) {
+      let won = 0;
+      let lost = 0;
+      for (const match of round.matches ?? []) {
+        const onT1 = match.team1.includes(p.id);
+        const onT2 = match.team2.includes(p.id);
+        if (!onT1 && !onT2) continue;
+        const money = (onT1 ? 1 : -1) * (totals.get(match.id) ?? 0) * round.pointsPerDollar;
+        if (money > 0) won += money;
+        else if (money < 0) lost += -money;
+      }
+      if (won === 0 && lost === 0) continue;
+
+      const name = canonicalName(p.name);
+      const key = name.toLowerCase();
+      let sm = byName.get(key);
+      if (!sm) {
+        sm = { name, won: 0, lost: 0, net: 0, rounds: 0 };
+        byName.set(key, sm);
+      }
+      sm.won += won;
+      sm.lost += lost;
+      sm.net += won - lost;
+      if (!countedThisRound.has(key)) {
+        sm.rounds += 1;
+        countedThisRound.add(key);
+      }
+    }
+  }
+
+  return Array.from(byName.values()).sort((a, b) => b.net - a.net);
 }
