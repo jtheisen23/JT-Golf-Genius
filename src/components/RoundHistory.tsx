@@ -1,6 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SavedRound } from '../types';
-import { loadRounds, deleteRound, fetchCloudRounds, saveRoundCloud } from '../utils/storage';
+import {
+  loadRounds,
+  deleteRound,
+  fetchCloudRounds,
+  saveRoundCloud,
+  fetchDeletedRoundIds,
+  fetchDeletedSignatures,
+  tombstoneRoundSignature,
+  roundSignature,
+  pruneLocalRounds,
+} from '../utils/storage';
 import {
   computeSeasonPartners,
   computeSeasonMoney,
@@ -53,6 +63,7 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   const [importStatus, setImportStatus] = useState<Record<string, string>>({});
   const [view, setView] = useState<'rounds' | 'season'>('rounds');
   const [viewingRound, setViewingRound] = useState<SavedRound | null>(null);
+  const [deletedSigs, setDeletedSigs] = useState<Set<string>>(new Set());
 
   // A Vegas game launched from a tournament group reuses the group's player IDs,
   // so the same round can exist in both places. Detect that to count each once.
@@ -71,11 +82,15 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
     for (const t of tournaments) {
       for (const g of t.groups) {
         const sr = tournamentGroupSavedRound(t, g);
-        if (sr && !alreadySavedAsVegas(sr.players.map((p) => p.id))) out.push(sr);
+        if (!sr) continue;
+        const ids = sr.players.map((p) => p.id);
+        // Skip if already saved as a Vegas round, or explicitly deleted.
+        if (alreadySavedAsVegas(ids) || deletedSigs.has(roundSignature(ids))) continue;
+        out.push(sr);
       }
     }
     return out;
-  }, [tournaments, alreadySavedAsVegas]);
+  }, [tournaments, alreadySavedAsVegas, deletedSigs]);
 
   // Combined directory: saved Vegas rounds + tournament rounds, newest first.
   const allRounds = useMemo(
@@ -115,30 +130,48 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
     const local = loadRounds();
     setRounds(local);
     sync.fetchAll().then(setTournaments).catch(() => {});
-    // Merge the shared cloud history in, and backfill any local-only rounds up
-    // to the cloud so they reach other devices.
-    fetchCloudRounds()
-      .then((cloud) => {
+    // Merge the shared cloud history in, honoring tombstones, and backfill any
+    // local-only rounds up to the cloud so they reach other devices.
+    Promise.all([fetchCloudRounds(), fetchDeletedRoundIds(), fetchDeletedSignatures()])
+      .then(([cloud, deleted, sigs]) => {
+        setDeletedSigs(sigs);
+        // Drop any locally-cached rounds that were deleted elsewhere.
+        const localKept = pruneLocalRounds(deleted);
         const cloudIds = new Set(cloud.map((r) => r.id));
-        local.forEach((r) => {
-          if (!cloudIds.has(r.id)) saveRoundCloud(r);
+        // Backfill local-only rounds that weren't deleted.
+        localKept.forEach((r) => {
+          if (!cloudIds.has(r.id) && !deleted.has(r.id)) saveRoundCloud(r);
         });
-        setRounds((prev) => {
-          const byId = new Map(prev.map((r) => [r.id, r]));
-          cloud.forEach((r) => {
-            if (!byId.has(r.id)) byId.set(r.id, r);
-          });
-          return Array.from(byId.values());
+        const byId = new Map(localKept.filter((r) => !deleted.has(r.id)).map((r) => [r.id, r]));
+        cloud.forEach((r) => {
+          if (!deleted.has(r.id) && !byId.has(r.id)) byId.set(r.id, r);
         });
+        setRounds(Array.from(byId.values()));
       })
       .catch(() => {});
   }, []);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (round: SavedRound) => {
     const ok = window.confirm('Delete this round? This cannot be undone.');
     if (!ok) return;
-    deleteRound(id);
-    setRounds((prev) => prev.filter((r) => r.id !== id));
+    deleteRound(round.id);
+    // Suppress the tournament twin (same players) too.
+    const ids = round.players.map((p) => p.id);
+    tombstoneRoundSignature(ids);
+    setDeletedSigs((prev) => new Set(prev).add(roundSignature(ids)));
+    setRounds((prev) => prev.filter((r) => r.id !== round.id));
+  };
+
+  // Suppress a tournament-sourced round from Vegas stats without deleting the
+  // underlying tournament (its leaderboard is unaffected).
+  const handleHideTournamentRound = (round: SavedRound) => {
+    const ok = window.confirm(
+      'Remove this round from your Vegas stats? The tournament itself is not changed.'
+    );
+    if (!ok) return;
+    const ids = round.players.map((p) => p.id);
+    tombstoneRoundSignature(ids);
+    setDeletedSigs((prev) => new Set(prev).add(roundSignature(ids)));
   };
 
   const handleEdit = (round: SavedRound) => {
@@ -384,7 +417,7 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
                           </button>
                         )}
                         <button
-                          onClick={() => handleDelete(round.id)}
+                          onClick={() => handleDelete(round)}
                           className="text-red-400 text-xs ml-auto"
                         >
                           Delete Round
@@ -392,7 +425,15 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
                       </>
                     )}
                     {isTournament && (
-                      <span className="text-[11px] text-neutral-500 ml-auto">From tournament</span>
+                      <>
+                        <span className="text-[11px] text-neutral-500">From tournament</span>
+                        <button
+                          onClick={() => handleHideTournamentRound(round)}
+                          className="text-red-400 text-xs ml-auto"
+                        >
+                          Remove from stats
+                        </button>
+                      </>
                     )}
                   </div>
 
