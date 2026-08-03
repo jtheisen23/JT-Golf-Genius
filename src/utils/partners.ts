@@ -1,6 +1,7 @@
-import { Player, Match, HoleSetup, Multiplier } from '../types';
+import { Player, Match, HoleSetup, Multiplier, HandicapMode } from '../types';
 import { getNetScore } from './scoring';
 import { makeVegasComputers } from './vegasCompute';
+import { calculateStrokesReceived } from './handicap';
 
 export interface PartnerPairing {
   partnerId: string;
@@ -369,14 +370,21 @@ export interface BirdieMoneyShare {
   pct: number;
 }
 
-export function computeBirdieMoneyShare(rounds: MoneyRoundInput[]): BirdieMoneyShare {
+// `mode` re-derives each round's strokes from the players' handicaps, so the
+// same rounds can be scored as full handicap or off-the-low. Gross-birdie holes
+// are mode-independent; the money on them shifts with the net scoring.
+export function computeBirdieMoneyShare(
+  rounds: MoneyRoundInput[],
+  mode: HandicapMode,
+): BirdieMoneyShare {
   let birdieMoney = 0;
   let totalMoney = 0;
 
   for (const round of rounds) {
     const parByHole = new Map((round.holes ?? []).map((h) => [h.number, h.par]));
+    const players = calculateStrokesReceived(round.players ?? [], mode);
     const { getMatchResultsForHole, getMultiplier, getMultiplierValue } = makeVegasComputers({
-      players: round.players ?? [],
+      players,
       holes: round.holes ?? [],
       matches: round.matches ?? [],
       scores: round.scores ?? {},

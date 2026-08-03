@@ -121,8 +121,12 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
     [allRounds],
   );
 
-  const birdieShare = useMemo(
-    () => computeBirdieMoneyShare(allRounds.map((r) => r.round)),
+  const birdieShareFull = useMemo(
+    () => computeBirdieMoneyShare(allRounds.map((r) => r.round), 'full'),
+    [allRounds],
+  );
+  const birdieShareLow = useMemo(
+    () => computeBirdieMoneyShare(allRounds.map((r) => r.round), 'off-the-low'),
     [allRounds],
   );
 
@@ -307,7 +311,8 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
           players={seasonPlayers}
           money={seasonMoney}
           scoring={seasonScoring}
-          birdieShare={birdieShare}
+          birdieShareFull={birdieShareFull}
+          birdieShareLow={birdieShareLow}
           roundCount={allRounds.length}
         />
       ) : allRounds.length === 0 ? (
