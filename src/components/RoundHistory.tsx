@@ -16,8 +16,9 @@ import {
   computeSeasonMoney,
   computeSeasonScoring,
   computeBirdieMoneyShare,
+  roundHasExcludedPlayer,
 } from '../utils/partners';
-import { tournamentGroupsAsRounds, tournamentGroupSavedRound } from '../tournament/partnerReport';
+import { tournamentGroupSavedRound } from '../tournament/partnerReport';
 import { makeVegasComputers } from '../utils/vegasCompute';
 import SeasonStats from './SeasonStats';
 import Scoreboard from './Scoreboard';
@@ -93,41 +94,30 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
   }, [tournaments, alreadySavedAsVegas, deletedSigs]);
 
   // Combined directory: saved Vegas rounds + tournament rounds, newest first.
+  // Rounds with excluded (test) players are dropped from everything.
   const allRounds = useMemo(
     () =>
       [
         ...rounds.map((r) => ({ round: r, source: 'vegas' as const })),
         ...tournamentRounds.map((r) => ({ round: r, source: 'tournament' as const })),
-      ].sort((a, b) => new Date(b.round.date).getTime() - new Date(a.round.date).getTime()),
+      ]
+        .filter(({ round }) => !roundHasExcludedPlayer(round.players))
+        .sort((a, b) => new Date(b.round.date).getTime() - new Date(a.round.date).getTime()),
     [rounds, tournamentRounds],
   );
 
-  // Season stats run through the same aggregator + alias consolidation.
-  const seasonPlayers = useMemo(() => {
-    const tourInputs = tournamentGroupsAsRounds(tournaments).filter(
-      (tr) => !alreadySavedAsVegas(tr.players.map((p) => p.id)),
-    );
-    return computeSeasonPartners([...rounds, ...tourInputs]);
-  }, [rounds, tournaments, alreadySavedAsVegas]);
+  // Everything below derives from the same filtered round list.
+  const statRounds = useMemo(() => allRounds.map((r) => r.round), [allRounds]);
+
+  const seasonPlayers = useMemo(() => computeSeasonPartners(statRounds), [statRounds]);
 
   // Cumulative money won/lost per player across every round (deduped, aliased).
-  const seasonMoney = useMemo(
-    () => computeSeasonMoney(allRounds.map((r) => r.round)),
-    [allRounds],
-  );
-
-  const seasonScoring = useMemo(
-    () => computeSeasonScoring(allRounds.map((r) => r.round)),
-    [allRounds],
-  );
-
-  const birdieShareFull = useMemo(
-    () => computeBirdieMoneyShare(allRounds.map((r) => r.round), 'full'),
-    [allRounds],
-  );
+  const seasonMoney = useMemo(() => computeSeasonMoney(statRounds), [statRounds]);
+  const seasonScoring = useMemo(() => computeSeasonScoring(statRounds), [statRounds]);
+  const birdieShareFull = useMemo(() => computeBirdieMoneyShare(statRounds, 'full'), [statRounds]);
   const birdieShareLow = useMemo(
-    () => computeBirdieMoneyShare(allRounds.map((r) => r.round), 'off-the-low'),
-    [allRounds],
+    () => computeBirdieMoneyShare(statRounds, 'off-the-low'),
+    [statRounds],
   );
 
   useEffect(() => {

@@ -232,6 +232,14 @@ function canonicalName(name: string): string {
   return NAME_ALIASES[trimmed.toLowerCase()] ?? trimmed;
 }
 
+// Test/placeholder players whose rounds should never count. A round containing
+// any of these is dropped from the stats and the directory entirely.
+const EXCLUDED_PLAYERS = new Set(['frank', 'tyrone']);
+
+export function roundHasExcludedPlayer(players: { name?: string }[] | undefined): boolean {
+  return (players ?? []).some((p) => EXCLUDED_PLAYERS.has((p.name || '').trim().toLowerCase()));
+}
+
 export function computeSeasonPartners(rounds: PartnerRoundInput[]): SeasonPlayer[] {
   const byName = new Map<string, SeasonPlayer>();
 
