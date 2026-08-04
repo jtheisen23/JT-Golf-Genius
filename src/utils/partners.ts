@@ -234,7 +234,7 @@ function canonicalName(name: string): string {
 
 // Test/placeholder players whose rounds should never count. A round containing
 // any of these is dropped from the stats and the directory entirely.
-const EXCLUDED_PLAYERS = new Set(['frank', 'tyrone']);
+const EXCLUDED_PLAYERS = new Set(['frank', 'tyrone', 'ttt', 'asdfasdf', 'jjjj', '555']);
 
 export function roundHasExcludedPlayer(players: { name?: string }[] | undefined): boolean {
   return (players ?? []).some((p) => EXCLUDED_PLAYERS.has((p.name || '').trim().toLowerCase()));
