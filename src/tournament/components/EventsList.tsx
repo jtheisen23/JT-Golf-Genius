@@ -34,7 +34,7 @@ function pastForDay(events: Tournament[], day: PlayDay): Tournament[] {
 }
 
 function otherEvents(events: Tournament[]): Tournament[] {
-  return events.filter((e) => !e.playDay);
+  return events.filter((e) => !e.playDay).sort((a, b) => b.date.localeCompare(a.date));
 }
 
 export default function EventsList({
@@ -147,22 +147,6 @@ export default function EventsList({
         })}
       </div>
 
-      {PLAY_DAYS.some((d) => pastForDay(events, d).length > 0) && (
-        <>
-          <h2 className="text-xs uppercase tracking-widest text-neutral-500 mb-2">Past weeks</h2>
-          <div className="space-y-1 mb-6">
-            {PLAY_DAYS.flatMap((d) => pastForDay(events, d)).map((e) => (
-              <EventRow
-                key={e.id}
-                event={e}
-                onOpen={() => onOpenEvent(e.id)}
-                onDelete={() => handleDelete(e.id)}
-              />
-            ))}
-          </div>
-        </>
-      )}
-
       <h2 className="text-xs uppercase tracking-widest text-neutral-500 mb-2">One-off events</h2>
       {!creatingOther ? (
         <button
@@ -212,7 +196,7 @@ export default function EventsList({
         </form>
       )}
       {others.length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-1 mb-6">
           {others.map((e) => (
             <EventRow
               key={e.id}
@@ -223,6 +207,23 @@ export default function EventsList({
           ))}
         </div>
       )}
+
+      {PLAY_DAYS.some((d) => pastForDay(events, d).length > 0) && (
+        <>
+          <h2 className="text-xs uppercase tracking-widest text-neutral-500 mb-2">Past weeks</h2>
+          <div className="space-y-1 mb-6">
+            {PLAY_DAYS.flatMap((d) => pastForDay(events, d)).map((e) => (
+              <EventRow
+                key={e.id}
+                event={e}
+                onOpen={() => onOpenEvent(e.id)}
+                onDelete={() => handleDelete(e.id)}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
     </div>
   );
 }
