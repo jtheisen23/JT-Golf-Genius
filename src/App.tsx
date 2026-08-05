@@ -118,7 +118,7 @@ function JoinGameScreen({ onJoin, onBack }: { onJoin: (code: string) => void; on
   );
 }
 
-function VegasApp({ onExit, initialJoinCode, openHistory }: { onExit: () => void; initialJoinCode?: string; openHistory?: boolean }) {
+function VegasApp({ onExit, initialJoinCode, openHistory, onNavigate }: { onExit: () => void; initialJoinCode?: string; openHistory?: boolean; onNavigate?: (hash: string) => void }) {
   const round = useRound();
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
@@ -159,6 +159,7 @@ function VegasApp({ onExit, initialJoinCode, openHistory }: { onExit: () => void
       <RoundHistory
         onBack={onExit}
         onEditRound={(saved) => round.loadSavedRound(saved)}
+        onNavigate={onNavigate}
       />
     );
   }
@@ -367,6 +368,7 @@ export default function App() {
             onExit={() => navigate(openHistory ? '#/' : '#/t')}
             initialJoinCode={joinCode}
             openHistory={openHistory}
+            onNavigate={navigate}
           />
         </ErrorBoundary>
       </>

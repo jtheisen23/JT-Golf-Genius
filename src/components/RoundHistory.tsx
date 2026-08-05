@@ -24,12 +24,19 @@ import SeasonStats from './SeasonStats';
 import Scoreboard from './Scoreboard';
 import ShareMenu from './ShareMenu';
 import { sync } from '../tournament/sync';
-import type { Tournament } from '../tournament/types';
-import { saveVegasGame, type VegasGameState } from '../hooks/vegasSync';
+import type { Tournament, TourGroup } from '../tournament/types';
+import {
+  saveVegasGame,
+  createVegasGameFromTournament,
+  type VegasGameState,
+} from '../hooks/vegasSync';
 
 interface Props {
   onBack: () => void;
   onEditRound: (round: SavedRound) => void;
+  /** Navigate the app (e.g. to a Vegas join route). Optional so callers that
+   *  don't need the live-resume path can omit it. */
+  onNavigate?: (hash: string) => void;
 }
 
 interface Match {
@@ -57,7 +64,7 @@ function findMatchingGroups(round: SavedRound, tournaments: Tournament[]): Match
   return matches;
 }
 
-export default function RoundHistory({ onBack, onEditRound }: Props) {
+export default function RoundHistory({ onBack, onEditRound, onNavigate }: Props) {
   const [rounds, setRounds] = useState<SavedRound[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -166,6 +173,68 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
     const ids = round.players.map((p) => p.id);
     tombstoneRoundSignature(ids);
     setDeletedSigs((prev) => new Set(prev).add(roundSignature(ids)));
+  };
+
+  // Re-open a tournament-sourced round as a LIVE, editable Vegas game so the
+  // user can keep scoring the round they're currently playing. The read-only
+  // "View Summary" can't do this — this rebuilds (or rejoins) the live game and
+  // navigates straight into it. Only tournament rounds have a `t-{tid}-{gid}` id
+  // we can map back to a tournament group.
+  const handleResume = async (round: SavedRound) => {
+    if (!onNavigate) return;
+    let found: { t: Tournament; g: TourGroup } | null = null;
+    for (const t of tournaments) {
+      for (const g of t.groups) {
+        if (round.id === `t-${t.id}-${g.id}`) {
+          found = { t, g };
+          break;
+        }
+      }
+      if (found) break;
+    }
+    if (!found) {
+      setImportStatus((s) => ({
+        ...s,
+        [round.id]: 'Could not find the source tournament for this round.',
+      }));
+      return;
+    }
+    const { t, g } = found;
+
+    // A live Vegas game already exists for this group — everyone should rejoin
+    // that same game rather than fork a second copy.
+    if (g.vegasGameCode) {
+      onNavigate(`#/vegas/join/${g.vegasGameCode}`);
+      return;
+    }
+
+    const groupPlayers = g.playerIds.map((id) => t.players[id]).filter(Boolean);
+    if (groupPlayers.length < 4) {
+      setImportStatus((s) => ({
+        ...s,
+        [round.id]: 'Need at least 4 players to open a Vegas game.',
+      }));
+      return;
+    }
+
+    setImportStatus((s) => ({ ...s, [round.id]: 'Opening live game…' }));
+    const code = await createVegasGameFromTournament(
+      groupPlayers,
+      t.holes,
+      t.courseName,
+      undefined,
+      t.handicapMode ?? 'off-the-low',
+      t.id,
+      g.id,
+      t.scores?.[g.id],
+    );
+    // Persist the new code onto the group so future resumes (and the tournament
+    // screen's own launch button) rejoin this same game instead of forking.
+    const updatedGroups = t.groups.map((grp) =>
+      grp.id === g.id ? { ...grp, vegasGameCode: code } : grp,
+    );
+    sync.saveMeta(t.id, { groups: updatedGroups });
+    onNavigate(`#/vegas/join/${code}`);
   };
 
   const handleEdit = (round: SavedRound) => {
@@ -421,6 +490,14 @@ export default function RoundHistory({ onBack, onEditRound }: Props) {
                     )}
                     {isTournament && (
                       <>
+                        {onNavigate && (
+                          <button
+                            onClick={() => handleResume(round)}
+                            className="bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg text-xs font-semibold active:bg-amber-800"
+                          >
+                            ▶️ Resume Game
+                          </button>
+                        )}
                         <span className="text-[11px] text-neutral-500">From tournament</span>
                         <button
                           onClick={() => handleHideTournamentRound(round)}
