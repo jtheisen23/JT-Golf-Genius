@@ -31,7 +31,15 @@ function loadGameCode(): string | null {
 export function useRound() {
   const saved = loadActiveRound();
 
-  const [screen, setScreen] = useState<Screen>(saved?.screen || 'setup');
+  // Never resume onto 'history' — that's a directory view, not a game state.
+  // (A game could get stranded there via the Past Rounds route.) Fall back to
+  // the scoreboard if a game is in progress, otherwise setup.
+  const savedScreen: Screen | undefined = saved?.screen;
+  const initialScreen: Screen =
+    savedScreen === 'history'
+      ? (saved?.matches?.length ? 'scoreboard' : 'setup')
+      : savedScreen || 'setup';
+  const [screen, setScreen] = useState<Screen>(initialScreen);
   const [players, setPlayers] = useState<Player[]>(
     (saved?.players as Player[] | undefined)?.map((p) => ({
       ...p,

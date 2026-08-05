@@ -123,12 +123,6 @@ function VegasApp({ onExit, initialJoinCode, openHistory }: { onExit: () => void
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
 
-  // Opened directly to the round directory (e.g. from Home / tournaments list).
-  const { setScreen } = round;
-  useEffect(() => {
-    if (openHistory) setScreen('history');
-  }, [openHistory, setScreen]);
-
   // Auto-join if we navigated with a join code. Compare against the current
   // gameCode (which may have been restored from localStorage on first render);
   // otherwise a stale cached code makes /vegas/join/<NEW> silently keep the
@@ -158,7 +152,9 @@ function VegasApp({ onExit, initialJoinCode, openHistory }: { onExit: () => void
     );
   }
 
-  if (round.screen === 'history') {
+  // `openHistory` (from the Past Rounds route) shows the directory WITHOUT
+  // touching the active round's screen, so an in-progress game isn't stranded.
+  if (openHistory || round.screen === 'history') {
     return (
       <RoundHistory
         onBack={onExit}
