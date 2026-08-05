@@ -248,7 +248,9 @@ export function useRound() {
     if (!remote) return false;
     // Firebase RTDB drops empty arrays/objects, so default each field to a
     // safe value to avoid downstream `.forEach` / `.map` crashes on undefined.
-    setScreen((remote.screen as Screen) || 'scoreboard');
+    // Never join onto 'history' (a directory view, not a game state).
+    const remoteScreen = remote.screen as Screen | undefined;
+    setScreen(remoteScreen && remoteScreen !== 'history' ? remoteScreen : 'scoreboard');
     setPlayers(remote.players ?? []);
     setHoles(remote.holes ?? []);
     setMatches(remote.matches ?? []);
