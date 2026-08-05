@@ -412,6 +412,7 @@ export default function EventHome({
               tournament.handicapMode ?? 'off-the-low',
               tournament.id,
               g.id,
+              tournament.scores?.[g.id],
             );
             onUpdateGroup(g.id, { vegasGameCode: code });
             onLaunchVegas(code);

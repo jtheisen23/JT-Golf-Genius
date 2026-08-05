@@ -126,6 +126,7 @@ export async function createVegasGameFromTournament(
   handicapMode: HandicapMode = 'off-the-low',
   tournamentId?: string,
   groupId?: string,
+  existingScores?: Record<string, Record<number, number>>,
 ): Promise<string> {
   // Convert TourPlayer → Player
   const rawPlayers: Player[] = tourPlayers.map((tp) => ({
@@ -164,9 +165,15 @@ export async function createVegasGameFromTournament(
     }
   }
 
-  // Build initial scores
+  // Seed scores from any already recorded for this group so relaunching a Vegas
+  // game resumes where scoring left off instead of starting blank.
   const scores: Record<string, Record<number, number>> = {};
-  players.forEach((p) => { scores[p.id] = {}; });
+  players.forEach((p) => {
+    scores[p.id] = { ...(existingScores?.[p.id] ?? {}) };
+  });
+  // Resume on the first hole that isn't fully scored yet.
+  const firstUnscored =
+    holes.find((h) => players.some((p) => scores[p.id]?.[h.number] == null))?.number ?? 1;
 
   const state: VegasGameState = {
     screen: 'holes',
@@ -174,7 +181,7 @@ export async function createVegasGameFromTournament(
     holes,
     matches,
     scores,
-    currentHole: 1,
+    currentHole: firstUnscored,
     courseName,
     pointValue,
     multipliers: {},
