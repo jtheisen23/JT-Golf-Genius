@@ -7,12 +7,12 @@
  *   card, never from a handicap-adjusted net score. (ordered):
  *     • Gross eagle or better  (gross <= par-2) — higher tier
  *     • Gross birdie or better (gross <= par-1) — lower tier
- * - SUPPRESSION (opponent prevents being flipped):
- *     • Gross eagle trigger is suppressed only if opponent ALSO has a gross eagle
- *       (or better). A gross birdie does NOT suppress a gross eagle — i.e. a gross
- *       eagle flips a gross birdie.
- *     • Gross birdie trigger is suppressed if opponent also has a gross birdie
- *       (or better).
+ * - SUPPRESSION (opponent prevents being flipped) is NET — a net birdie/eagle is
+ *   enough to block on defense even though it can't trigger on offense:
+ *     • Gross eagle trigger is suppressed if opponent's low NET is eagle-or-better
+ *       (net <= par-2). A net birdie does NOT suppress a gross eagle.
+ *     • Gross birdie trigger is suppressed if opponent's low NET is birdie-or-better
+ *       (net <= par-1) — e.g. a net birdie blocks a gross birdie, no flip.
  * - Points = opponent's number - your number (positive = you win)
  */
 export function calculateVegasPoints(
@@ -22,8 +22,9 @@ export function calculateVegasPoints(
   team1Gross: [number, number],
   team2Gross: [number, number]
 ): { team1Vegas: number; team2Vegas: number; points: number } {
-  // Flip triggers are driven entirely by GROSS scores. Net scores only decide
-  // the two-digit Vegas number below, never whether a flip happens.
+  // Flip triggers are driven entirely by GROSS scores — a net score can never
+  // CAUSE a flip. (Net scores still decide the two-digit Vegas number below, and
+  // still BLOCK a flip on defense — see the suppression checks.)
   const team1GrossEagle =
     team1Gross[0] <= par - 2 || team1Gross[1] <= par - 2;
   const team2GrossEagle =
@@ -36,17 +37,18 @@ export function calculateVegasPoints(
   const sorted1 = [...team1Scores].sort((a, b) => a - b) as [number, number];
   const sorted2 = [...team2Scores].sort((a, b) => a - b) as [number, number];
 
-  // Gross eagle flips unless opponent also has a gross eagle (or better).
-  // Otherwise, gross birdie flips unless opponent also has a gross birdie.
+  // Gross eagle flips unless opponent's low NET is eagle-or-better.
+  // Otherwise, gross birdie flips unless opponent's low NET is birdie-or-better
+  // (a net birdie blocks a gross birdie — no flip).
   const flipTeam2 = team1GrossEagle
-    ? !team2GrossEagle
+    ? sorted2[0] > par - 2
     : team1GrossBirdie
-      ? !team2GrossBirdie
+      ? sorted2[0] > par - 1
       : false;
   const flipTeam1 = team2GrossEagle
-    ? !team1GrossEagle
+    ? sorted1[0] > par - 2
     : team2GrossBirdie
-      ? !team1GrossBirdie
+      ? sorted1[0] > par - 1
       : false;
 
   // Normal: lower digit first. Flipped: higher digit first.
