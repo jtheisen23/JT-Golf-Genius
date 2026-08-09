@@ -1,18 +1,15 @@
 /**
  * Calculate the Vegas score for a single hole between two teams.
  *
- * Rules (ranked, higher-tier trigger beats lower-tier suppressor):
  * - Each team's two net scores form a two-digit number (lower digit first → e.g. 4,5 = 45)
- * - FLIP TRIGGERS are GROSS only — a flip comes from a real birdie/eagle on the
- *   card, never from a handicap-adjusted net score. (ordered):
- *     • Gross eagle or better  (gross <= par-2) — higher tier
- *     • Gross birdie or better (gross <= par-1) — lower tier
- * - SUPPRESSION (opponent prevents being flipped) is NET — a net birdie/eagle is
- *   enough to block on defense even though it can't trigger on offense:
- *     • Gross eagle trigger is suppressed if opponent's low NET is eagle-or-better
- *       (net <= par-2). A net birdie does NOT suppress a gross eagle.
- *     • Gross birdie trigger is suppressed if opponent's low NET is birdie-or-better
- *       (net <= par-1) — e.g. a net birdie blocks a gross birdie, no flip.
+ * - A team FLIPS the opponent when BOTH hold:
+ *     1. OFFENSE GATE (gross): the team made a gross birdie or better (gross <= par-1).
+ *        A net score alone can never trigger a flip.
+ *     2. NET EDGE: the team's low NET is strictly lower than the opponent's low NET.
+ *   Net decides the tier, so:
+ *     • A net birdie blocks a gross birdie — equal net, no flip.
+ *     • A gross birdie that nets to an eagle flips through an opponent's net birdie.
+ *     • Two equal net scores cancel — no flip either way.
  * - Points = opponent's number - your number (positive = you win)
  */
 export function calculateVegasPoints(
@@ -22,13 +19,8 @@ export function calculateVegasPoints(
   team1Gross: [number, number],
   team2Gross: [number, number]
 ): { team1Vegas: number; team2Vegas: number; points: number } {
-  // Flip triggers are driven entirely by GROSS scores — a net score can never
-  // CAUSE a flip. (Net scores still decide the two-digit Vegas number below, and
-  // still BLOCK a flip on defense — see the suppression checks.)
-  const team1GrossEagle =
-    team1Gross[0] <= par - 2 || team1Gross[1] <= par - 2;
-  const team2GrossEagle =
-    team2Gross[0] <= par - 2 || team2Gross[1] <= par - 2;
+  // Offense gate: only a real (gross) birdie or better puts a team on offense.
+  // A net score can defend (via the net-edge comparison below) but never attack.
   const team1GrossBirdie =
     team1Gross[0] <= par - 1 || team1Gross[1] <= par - 1;
   const team2GrossBirdie =
@@ -37,19 +29,11 @@ export function calculateVegasPoints(
   const sorted1 = [...team1Scores].sort((a, b) => a - b) as [number, number];
   const sorted2 = [...team2Scores].sort((a, b) => a - b) as [number, number];
 
-  // Gross eagle flips unless opponent's low NET is eagle-or-better.
-  // Otherwise, gross birdie flips unless opponent's low NET is birdie-or-better
-  // (a net birdie blocks a gross birdie — no flip).
-  const flipTeam2 = team1GrossEagle
-    ? sorted2[0] > par - 2
-    : team1GrossBirdie
-      ? sorted2[0] > par - 1
-      : false;
-  const flipTeam1 = team2GrossEagle
-    ? sorted1[0] > par - 2
-    : team2GrossBirdie
-      ? sorted1[0] > par - 1
-      : false;
+  // Flip the opponent when this team has a gross birdie AND its low net beats
+  // the opponent's low net. Net decides the tier: a gross birdie that nets to an
+  // eagle flips through a net birdie, and two equal nets cancel.
+  const flipTeam2 = team1GrossBirdie && sorted1[0] < sorted2[0];
+  const flipTeam1 = team2GrossBirdie && sorted2[0] < sorted1[0];
 
   // Normal: lower digit first. Flipped: higher digit first.
   const team1Vegas = flipTeam1
